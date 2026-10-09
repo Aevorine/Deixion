@@ -127,9 +127,23 @@ for (const [name, args] of [
 }
 
 // launch 的护栏：不起 Deixion 自己的程序；命令行解释器与脚本宿主默认不起
-const guard = [['Deixion\'s own executable', `${root}/build/Deixion.exe`, /own programs/], ['cmd.exe', 'cmd.exe', /command shell/], ['powershell', 'powershell', /command shell/], ['a .bat file', 'C:/Windows/x.bat', /command shell/]];
-for (const [what, p, re] of guard) {
-  const r = await call('launch', { path: p });
+const SHELL = /command shell/;
+const guard = [
+  ["Deixion's own executable",{ path: `${root}/build/Deixion.exe` }, /own programs/],
+  ['cmd.exe', { path: 'cmd.exe' }, SHELL],
+  ['a bare, upper-case name (CMD)', { path: 'CMD' }, SHELL],
+  ['powershell', { path: 'powershell' }, SHELL],
+  ['cmd.exe through a file: URL', { path: 'file:///C:/Windows/System32/cmd.exe' }, SHELL],
+  ['cmd.exe with trailing dots', { path: 'C:/Windows/System32/cmd.exe..' }, SHELL],
+  ['a quoted cmd.exe path', { path: String.raw`"C:\Windows\System32\cmd.exe"` }, SHELL],
+  ['a .bat file', { path: 'C:/Windows/x.bat' }, SHELL],
+  ['an internet shortcut (.url)', { path: 'C:/Windows/x.url' }, SHELL],
+  ['an unknown link scheme (ms-msdt:)', { path: 'ms-msdt:/id PCWDiagnostic' }, SHELL],
+  ['explorer.exe told to open cmd.exe', { path: 'explorer.exe', args: String.raw`C:\Windows\System32\cmd.exe` }, SHELL],
+  ['python.exe', { path: 'python.exe' }, SHELL],
+];
+for (const [what, args, re] of guard) {
+  const r = await call('launch', args);
   check(`launch refuses ${what}`, r.isError && re.test(r.text), r.text.slice(0, 100));
 }
 

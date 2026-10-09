@@ -3,6 +3,7 @@
 #include <shellapi.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 
 #include "core/base/clock.hpp"
@@ -67,40 +68,121 @@ Res<void> toggle_node(const uia::Node& n) {
   return uia::Service::get().toggle(n);
 }
 
-// launch 能起任何程序，等于绕开 Claude Code 自己对 Bash 的授权；这里设两道护栏（不是沙箱）：
-// 不起 Deixion 自己的程序；命令行解释器与脚本宿主默认不起，需要用户在设置里打开。
-std::string launch_name(const std::string& path) {
-  std::string n = path;
-  while (!n.empty() && (n.back() == ' ' || n.back() == '"' || n.back() == '\\' || n.back() == '/')) n.pop_back();
-  const size_t cut = n.find_last_of("\\/");
-  if (cut != std::string::npos) n.erase(0, cut + 1);
-  while (!n.empty() && (n.front() == ' ' || n.front() == '"')) n.erase(0, 1);
-  n = text::lower(n);
-  if (n.find('.') == std::string::npos) n += ".exe";
-  return n;
+// launch 能起任何程序，等于绕开 Claude Code 自己对 Bash 的授权；这里设护栏，不是沙箱：
+// 不起 Deixion 自己的程序；命令行解释器、脚本宿主和能间接执行别的程序的系统工具，默认不起，需要用户在设置里打开。
+// 判断的是路径还原后真正会被执行的文件名（去引号、file: 网址、短文件名、末尾的点和空格、数据流后缀都先还原）。
+enum class LaunchKind { Plain, Own, Shell };
+
+std::string percent_decode(const std::string& s) {
+  std::string o;
+  for (size_t i = 0; i < s.size(); ++i) {
+    if (s[i] == '%' && i + 2 < s.size() && std::isxdigit(static_cast<unsigned char>(s[i + 1])) && std::isxdigit(static_cast<unsigned char>(s[i + 2]))) {
+      o += static_cast<char>(std::stoi(s.substr(i + 1, 2), nullptr, 16));
+      i += 2;
+    } else {
+      o += s[i];
+    }
+  }
+  return o;
 }
-bool launches_own_program(const std::string& name, const std::string& path) {
-  if (name.rfind("deixion", 0) == 0 && name.size() > 4 && name.compare(name.size() - 4, 4, ".exe") == 0) return true;
-  if (name != "uninstall.exe") return false;
-  wchar_t self[MAX_PATH]{}, full[MAX_PATH]{};
+
+// 返回要检查的小写文件名；空串表示不是本地文件（网址一类）。unknown 置真表示带了不认识的协议。
+std::string launch_leaf(const std::string& raw, std::wstring& full_out, bool& unknown) {
+  unknown = false;
+  std::string p = raw;
+  while (!p.empty() && (p.back() == ' ' || p.back() == '"')) p.pop_back();
+  while (!p.empty() && (p.front() == ' ' || p.front() == '"')) p.erase(0, 1);
+  const size_t colon = p.find(':');
+  if (colon != std::string::npos && colon >= 2 && p.find_first_of("\\/") > colon) {
+    const std::string scheme = text::lower(p.substr(0, colon));
+    static const std::unordered_set<std::string> kSafe = {"http", "https", "mailto", "ms-settings"};
+    if (kSafe.count(scheme)) return {};
+    if (scheme != "file") {
+      unknown = true;
+      return {};
+    }
+    p = percent_decode(p.substr(colon + 1));
+    while (!p.empty() && p.front() == '/') p.erase(0, 1);
+    std::replace(p.begin(), p.end(), '/', '\\');
+  }
+  std::wstring w = text::widen(p);
+  wchar_t buf[2 * MAX_PATH]{};
+  DWORD n = GetFullPathNameW(w.c_str(), 2 * MAX_PATH, buf, nullptr);
+  if (n && n < 2 * MAX_PATH) w.assign(buf, n);
+  n = GetLongPathNameW(w.c_str(), buf, 2 * MAX_PATH);
+  if (n && n < 2 * MAX_PATH) w.assign(buf, n);
+  full_out = w;
+  std::string leaf = text::narrow(w);
+  const size_t cut = leaf.find_last_of("\\/");
+  if (cut != std::string::npos) leaf.erase(0, cut + 1);
+  if (const size_t ads = leaf.find(':'); ads != std::string::npos) leaf.erase(ads);
+  while (!leaf.empty() && (leaf.back() == '.' || leaf.back() == ' ')) leaf.pop_back();
+  leaf = text::lower(leaf);
+  if (leaf.find('.') == std::string::npos) leaf += ".exe";
+  return leaf;
+}
+
+bool is_shell_leaf(const std::string& leaf) {
+  static const std::unordered_set<std::string> kHosts = {
+      "cmd.exe",     "powershell.exe", "pwsh.exe",    "powershell_ise.exe", "wscript.exe",   "cscript.exe",  "mshta.exe",     "rundll32.exe", "regsvr32.exe", "wsl.exe",
+      "bash.exe",    "sh.exe",         "wt.exe",      "conhost.exe",        "forfiles.exe",  "msbuild.exe",  "msiexec.exe",   "schtasks.exe", "certutil.exe", "installutil.exe",
+      "regasm.exe",  "regsvcs.exe",    "cmstp.exe",   "bitsadmin.exe",      "wmic.exe",      "pcalua.exe",   "msdt.exe",      "mmc.exe",      "at.exe",       "ssh.exe",
+      "python.exe",  "pythonw.exe",    "py.exe",      "node.exe",           "deno.exe",      "bun.exe",      "java.exe",      "javaw.exe",    "perl.exe",     "ruby.exe",
+      "php.exe",     "lua.exe",        "busybox.exe", "git-bash.exe"};
+  if (kHosts.count(leaf)) return true;
+  static const char* kExt[] = {".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".reg", ".com", ".scr", ".pif",
+                               ".url", ".msc", ".msi", ".cpl", ".sct", ".wsc", ".jar", ".application", ".appref-ms"};
+  for (const char* ext : kExt) {
+    const size_t n = std::char_traits<char>::length(ext);
+    if (leaf.size() >= n && leaf.compare(leaf.size() - n, n, ext) == 0) return true;
+  }
+  return false;
+}
+
+bool is_own_leaf(const std::string& leaf, const std::wstring& full) {
+  if (leaf.size() > 4 && leaf.rfind("deixion", 0) == 0 && leaf.compare(leaf.size() - 4, 4, ".exe") == 0) return true;
+  if (leaf != "uninstall.exe" || full.empty()) return false;
+  wchar_t self[MAX_PATH]{};
   GetModuleFileNameW(nullptr, self, MAX_PATH);
-  const std::wstring wp = text::widen(path);
-  if (!GetFullPathNameW(wp.c_str(), MAX_PATH, full, nullptr)) return false;
   std::wstring a = full, b = self;
   a = a.substr(0, a.find_last_of(L"\\/"));
   b = b.substr(0, b.find_last_of(L"\\/"));
   return text::lower(text::narrow(a)) == text::lower(text::narrow(b));
 }
-bool launches_shell_host(const std::string& name) {
-  static const std::unordered_set<std::string> kHosts = {"cmd.exe",     "powershell.exe", "pwsh.exe",   "powershell_ise.exe", "wscript.exe", "cscript.exe", "mshta.exe",
-                                                         "rundll32.exe", "regsvr32.exe",   "wsl.exe",    "bash.exe",           "wt.exe",      "conhost.exe"};
-  if (kHosts.count(name)) return true;
-  static const char* kScripts[] = {".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".reg"};
-  for (const char* ext : kScripts) {
-    const size_t n = std::char_traits<char>::length(ext);
-    if (name.size() >= n && name.compare(name.size() - n, n, ext) == 0) return true;
+
+LaunchKind judge_launch(const std::string& path, const std::string& args) {
+  std::wstring full;
+  bool unknown = false;
+  const std::string leaf = launch_leaf(path, full, unknown);
+  if (unknown) return LaunchKind::Shell;
+  if (leaf.empty()) return LaunchKind::Plain;
+  if (is_own_leaf(leaf, full)) return LaunchKind::Own;
+  if (is_shell_leaf(leaf)) return LaunchKind::Shell;
+  // 资源管理器能把参数当程序去打开：参数里点名的程序也按同一套规则看。
+  if (leaf == "explorer.exe" && !args.empty()) {
+    auto check = [&](const std::string& t) {
+      if (t.empty()) return LaunchKind::Plain;
+      std::wstring f2;
+      bool unk = false;
+      const std::string l2 = launch_leaf(t, f2, unk);
+      if (unk) return LaunchKind::Shell;
+      if (!l2.empty() && is_own_leaf(l2, f2)) return LaunchKind::Own;
+      if (!l2.empty() && is_shell_leaf(l2)) return LaunchKind::Shell;
+      return LaunchKind::Plain;
+    };
+    std::string cur;
+    LaunchKind worst = LaunchKind::Plain;
+    for (char c : args + " ") {
+      if (c == ' ' || c == '\t' || c == '"' || c == ',') {
+        if (const LaunchKind k = check(cur); k != LaunchKind::Plain && worst != LaunchKind::Own) worst = k;
+        cur.clear();
+      } else {
+        cur += c;
+      }
+    }
+    return worst;
   }
-  return false;
+  return LaunchKind::Plain;
 }
 }  // namespace
 
@@ -632,10 +714,10 @@ Res<Json> Engine::a_launch(const Json& p) {
   if (auto g = gate(st); !g) return std::unexpected(g.error());
   const std::string path = p["path"].as_str();
   if (path.empty()) return fail(E_BAD_ARG, "path is required (an exe, document, or URL)");
-  const std::string lname = launch_name(path);
-  if (launches_own_program(lname, path)) return fail(E_DENIED, "launch cannot start Deixion's own programs");
-  if (!st.allow_shell_launch && path.find("://") == std::string::npos && launches_shell_host(lname))
-    return fail(E_DENIED, "launching a command shell or script host is off; only the user can enable it in Deixion's settings (allow_shell_launch)");
+  const LaunchKind kind = judge_launch(path, p["args"].as_str());
+  if (kind == LaunchKind::Own) return fail(E_DENIED, "launch cannot start Deixion's own programs");
+  if (kind == LaunchKind::Shell && !st.allow_shell_launch)
+    return fail(E_DENIED, "launching a command shell, script host or this kind of link is off; only the user can enable it in Deixion's settings (allow_shell_launch)");
   const bool fg = fg_mode(st, p);
   SHELLEXECUTEINFOW sei{sizeof sei};
   const std::wstring wp = text::widen(path), wa = text::widen(p["args"].as_str()), wd = text::widen(p["cwd"].as_str());

@@ -121,7 +121,7 @@ Claude Code 通过 `deixion-cli mcp` 调用以下 18 个工具。`window` 可以
 | `set_value` | 通过 UIA 直接设值，不打字（可撤销） | `window`、`value`、点 |
 | `read` | 读取元素的值、文本或勾选状态 | `window`、点 |
 | `window_op` | 窗口管理 | `window`、`op`（focus / minimize / maximize / restore / close / move / resize / topmost）、`rect` |
-| `launch` | 启动程序、文档或网址（后台不抢焦点）。不会启动 Deixion 自己的程序；命令行与脚本宿主（`cmd`、PowerShell、`wscript`、`.bat`、`.ps1` 等）默认也不启动，除非用户打开 `allow_shell_launch` | `path`、`args`、`cwd`、`wait_window_ms`（默认 3000） |
+| `launch` | 启动程序、文档或网址（后台不抢焦点）。不会启动 Deixion 自己的程序；除非用户打开 `allow_shell_launch`，命令行、脚本宿主和解释器（`cmd`、PowerShell、`wscript`、Python、Node、`.bat`、`.ps1`、`.url` 等）以及 `http`、`https`、`mailto`、`ms-settings` 之外的链接协议（含 `file:`）也都不会启动。检查针对还原后的真实文件名：引号、`file:` 网址、短文件名、末尾的点会先还原，`explorer.exe` 还会检查参数里点名的程序 | `path`、`args`、`cwd`、`wait_window_ms`（默认 3000） |
 | `wait` | 不靠固定 sleep 等待 | `for`（settle / element / gone / window）、`window`、`find`、`timeout_ms`（默认 5000）、`quiet_ms` |
 | `batch` | 一次调用执行多步（一次往返） | `steps`、`defaults`、`stop_on_error`（默认 true，最多 200 步） |
 | `undo` | 回滚最近 N 次可逆动作 | `count`（1–50）、`id` |

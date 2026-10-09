@@ -122,7 +122,7 @@ Claude Code calls these 18 tools through `deixion-cli mcp`. `window` accepts a t
 | `set_value` | Sets a value directly through UIA without typing (undoable) | `window`, `value`, point |
 | `read` | Reads an element's value, text or toggle state | `window`, point |
 | `window_op` | Window management | `window`, `op` (focus / minimize / maximize / restore / close / move / resize / topmost), `rect` |
-| `launch` | Starts a program, document or URL (background does not steal focus). It refuses Deixion's own programs, and refuses command shells and script hosts (`cmd`, PowerShell, `wscript`, `.bat`, `.ps1`, …) unless the user turns on `allow_shell_launch` | `path`, `args`, `cwd`, `wait_window_ms` (default 3000) |
+| `launch` | Starts a program, document or URL (background does not steal focus). It refuses Deixion's own programs, and, unless the user turns on `allow_shell_launch`, command shells, script hosts and interpreters (`cmd`, PowerShell, `wscript`, Python, Node, `.bat`, `.ps1`, `.url`, …) and link schemes other than `http`, `https`, `mailto` and `ms-settings` (including `file:`). The check is made on the resolved file name: quotes, `file:` URLs, short names and trailing dots are undone first, and `explorer.exe` is checked for programs named in its arguments | `path`, `args`, `cwd`, `wait_window_ms` (default 3000) |
 | `wait` | Waits without fixed sleeps | `for` (settle / element / gone / window), `window`, `find`, `timeout_ms` (default 5000), `quiet_ms` |
 | `batch` | Runs many steps in one call (one round trip) | `steps`, `defaults`, `stop_on_error` (default true, at most 200 steps) |
 | `undo` | Rolls back the most recent N reversible actions | `count` (1–50), `id` |

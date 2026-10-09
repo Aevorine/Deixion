@@ -150,14 +150,34 @@ bool is_own_leaf(const std::string& leaf, const std::wstring& full) {
   return text::lower(text::narrow(a)) == text::lower(text::narrow(b));
 }
 
-LaunchKind judge_launch(const std::string& path, const std::string& args) {
-  std::wstring full;
+struct LaunchInfo {
+  LaunchKind kind{LaunchKind::Plain};
+  std::string leaf;   // 要执行的小写文件名；链接为空
+  std::wstring full;  // 还原后的完整路径
+  bool link{false};   // http / https / mailto / ms-settings 这类链接
+};
+
+LaunchInfo judge_launch(const std::string& path, const std::string& args) {
+  LaunchInfo li;
   bool unknown = false;
-  const std::string leaf = launch_leaf(path, full, unknown);
-  if (unknown) return LaunchKind::Shell;
-  if (leaf.empty()) return LaunchKind::Plain;
-  if (is_own_leaf(leaf, full)) return LaunchKind::Own;
-  if (is_shell_leaf(leaf)) return LaunchKind::Shell;
+  li.leaf = launch_leaf(path, li.full, unknown);
+  const std::string& leaf = li.leaf;
+  if (unknown) {
+    li.kind = LaunchKind::Shell;
+    return li;
+  }
+  if (leaf.empty()) {
+    li.link = true;
+    return li;
+  }
+  if (is_own_leaf(leaf, li.full)) {
+    li.kind = LaunchKind::Own;
+    return li;
+  }
+  if (is_shell_leaf(leaf)) {
+    li.kind = LaunchKind::Shell;
+    return li;
+  }
   // 资源管理器能把参数当程序去打开：参数里点名的程序也按同一套规则看。
   if (leaf == "explorer.exe" && !args.empty()) {
     auto check = [&](const std::string& t) {
@@ -180,9 +200,22 @@ LaunchKind judge_launch(const std::string& path, const std::string& args) {
         cur += c;
       }
     }
-    return worst;
+    li.kind = worst;
   }
-  return LaunchKind::Plain;
+  return li;
+}
+
+// 严格模式下的清单：条目是程序名（notepad.exe）或完整路径；不带扩展名的条目按 .exe 算。
+bool launch_listed(const Settings& st, const LaunchInfo& li) {
+  for (const auto& e : st.launch_allow) {
+    std::wstring ef;
+    bool unk = false;
+    const std::string el = launch_leaf(e, ef, unk);
+    if (el.empty()) continue;
+    const bool has_dir = e.find_first_of("\\/") != std::string::npos;
+    if (has_dir ? text::lower(text::narrow(ef)) == text::lower(text::narrow(li.full)) : el == li.leaf) return true;
+  }
+  return false;
 }
 }  // namespace
 
@@ -714,10 +747,16 @@ Res<Json> Engine::a_launch(const Json& p) {
   if (auto g = gate(st); !g) return std::unexpected(g.error());
   const std::string path = p["path"].as_str();
   if (path.empty()) return fail(E_BAD_ARG, "path is required (an exe, document, or URL)");
-  const LaunchKind kind = judge_launch(path, p["args"].as_str());
-  if (kind == LaunchKind::Own) return fail(E_DENIED, "launch cannot start Deixion's own programs");
-  if (kind == LaunchKind::Shell && !st.allow_shell_launch)
+  const LaunchInfo li = judge_launch(path, p["args"].as_str());
+  if (li.kind == LaunchKind::Own) return fail(E_DENIED, "launch cannot start Deixion's own programs");
+  if (st.launch_strict) {
+    // 严格模式：只有用户在设置里列出的程序能启动（列了 shell 就算用户明确允许）；资源管理器带参数等于能打开任意程序，不放行。
+    const bool listed = !li.link && launch_listed(st, li) && !(li.leaf == "explorer.exe" && !p["args"].as_str().empty());
+    if (!li.link && !listed)
+      return fail(E_DENIED, "launch is restricted to the programs the user listed in Deixion's settings (launch_allow); ask the user to add this one");
+  } else if (li.kind == LaunchKind::Shell && !st.allow_shell_launch) {
     return fail(E_DENIED, "launching a command shell, script host or this kind of link is off; only the user can enable it in Deixion's settings (allow_shell_launch)");
+  }
   const bool fg = fg_mode(st, p);
   SHELLEXECUTEINFOW sei{sizeof sei};
   const std::wstring wp = text::widen(path), wa = text::widen(p["args"].as_str()), wd = text::widen(p["cwd"].as_str());

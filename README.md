@@ -214,7 +214,9 @@ deixion-cli --inproc …                   不连接正在运行的 Deixion，�
 |---|---|---|
 | `mode` | `background` / `foreground`（`background`） | 后台或前台模式，见上文 |
 | `allow_hop` | 布尔（`false`） | 允许短暂切前台兜底 |
-| `allow_shell_launch` | 布尔（`false`） | 允许 `launch` 启动命令行与脚本宿主。只有用户能改：MCP 工具和 `batch` 都改不了 |
+| `allow_shell_launch` | 布尔（`false`） | 允许 `launch` 启动命令行、脚本宿主和解释器。只有用户能改：MCP 工具和 `batch` 都改不了 |
+| `launch_strict` | 布尔（`false`） | 严格模式：`launch` 只能启动 `launch_allow` 清单里的程序（以及 `http`、`https`、`mailto`、`ms-settings` 链接），其余一律拒绝，带参数的 `explorer.exe` 也不行。把命令行或解释器列进清单就是明确授权 |
+| `launch_allow` | 字符串列表（`[]`） | 程序名（如 `notepad.exe`）或完整路径。在设置页“允许启动的程序”里编辑 |
 | `speed` | `instant` / `fast` / `smooth`（`fast`） | 前台模式鼠标移动时长：0 ms / 120 ms / 380 ms（拖拽另计） |
 | `overlay` | 布尔（`true`） | 前台操作显示轨迹 |
 | `verify` | `auto` / `off`（`auto`） | 动作后是否核对界面变化，见下文「校验」 |

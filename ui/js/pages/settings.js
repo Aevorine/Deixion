@@ -42,6 +42,8 @@ registerPage({
         row('暂停接收操作', reg('paused', toggle({ value: s().paused, onChange: (v) => patchSettings({ paused: v }) }))),
         row('允许短暂切前台', reg('allow_hop', toggle({ value: s().allow_hop, tip: '后台通道都失败时，才允许短暂切到前台完成操作', onChange: (v) => patchSettings({ allow_hop: v }) }))),
         row('允许启动命令行与脚本', reg('allow_shell_launch', toggle({ value: s().allow_shell_launch, tip: '默认禁止模型用“启动程序”打开 cmd、PowerShell、脚本宿主等；只有你能在这里打开', onChange: (v) => patchSettings({ allow_shell_launch: v }) }))),
+        row('只允许启动清单内的程序', reg('launch_strict', toggle({ value: s().launch_strict, tip: '开启后“启动程序”只能打开右边清单里的程序，其余一律拒绝', onChange: (v) => patchSettings({ launch_strict: v }) }))),
+        row('允许启动的程序', btn({ icon: 'list', label: '编辑', onClick: editAllow })),
         row('前台显示轨迹', reg('overlay', toggle({ value: s().overlay, onChange: (v) => patchSettings({ overlay: v }) }))),
         row('速度', reg('speed', seg({ value: s().speed, options: [{ value: 'instant', label: '瞬时' }, { value: 'fast', label: '快速' }, { value: 'smooth', label: '平滑' }], onChange: (v) => patchSettings({ speed: v }) }))),
         row('操作后验证', reg('verify', toggle({ value: s().verify !== 'off', tip: '用窗口事件确认操作是否生效', onChange: (v) => patchSettings({ verify: v ? 'auto' : 'off' }) })))),
@@ -67,6 +69,14 @@ registerPage({
           asyncBtn({ icon: 'copy', label: '导出' }, () => copy(JSON.stringify(s(), null, 2), call)),
           btn({ icon: 'upload', label: '导入', onClick: importSettings })))),
     });
+
+    async function editAllow() {
+      const ta = h('textarea', { class: 'input code-in', rows: 12, spellcheck: 'false', placeholder: 'notepad.exe' });
+      ta.value = (s().launch_allow || []).join('\n');
+      const ok = await dialog({ title: '允许启动的程序', body: ta, actions: [{ label: '取消', value: false }, { label: '保存', kind: 'primary', value: true }] });
+      if (!ok) return;
+      try { await patchSettings({ launch_allow: ta.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean) }); toast('已保存', 'ok'); } catch (e) { toast(`保存失败：${e.message}`, 'danger'); }
+    }
 
     async function importSettings() {
       const ta = h('textarea', { class: 'input code-in', rows: 12, spellcheck: 'false', placeholder: '粘贴导出的配置 JSON' });
@@ -135,7 +145,7 @@ registerPage({
 
     const syncAll = () => {
       const x = s();
-      ctl.mode.set(x.mode); ctl.paused.set(x.paused); ctl.allow_hop.set(x.allow_hop); ctl.allow_shell_launch.set(x.allow_shell_launch); ctl.overlay.set(x.overlay); ctl.speed.set(x.speed);
+      ctl.mode.set(x.mode); ctl.paused.set(x.paused); ctl.allow_hop.set(x.allow_hop); ctl.allow_shell_launch.set(x.allow_shell_launch); ctl.launch_strict.set(x.launch_strict); ctl.overlay.set(x.overlay); ctl.speed.set(x.speed);
       ctl.verify.set(x.verify !== 'off'); ctl.jpeg_quality.set(x.jpeg_quality); ctl.max_image_dim.set(x.max_image_dim); ctl.grid_default.set(x.grid_default);
       ctl.log_level.value = x.log_level; ctl.theme.set(x.theme); ctl.density.set(x.density); ctl.autostart.set(x.autostart); ctl.close_to_tray.set(x.close_to_tray); ctl.check_updates.set(x.check_updates);
     };

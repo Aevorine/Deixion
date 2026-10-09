@@ -2,6 +2,8 @@
 #include <filesystem>
 #include <functional>
 #include <mutex>
+#include <string>
+#include <vector>
 
 #include "core/base/json.hpp"
 
@@ -11,6 +13,8 @@ struct Settings {
   std::string mode{"background"};
   bool allow_hop{false};
   bool allow_shell_launch{false};
+  bool launch_strict{false};                // 开启后 launch 只能启动 launch_allow 清单里的程序
+  std::vector<std::string> launch_allow;    // 程序名（如 notepad.exe）或完整路径
   std::string speed{"fast"};
   bool overlay{true};
   std::string verify{"auto"};

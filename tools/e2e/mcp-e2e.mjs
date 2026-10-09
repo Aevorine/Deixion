@@ -1,5 +1,5 @@
 // 真实 MCP 会话：stdio JSON-RPC 驱动 deixion-cli mcp，操作 dx-testapp，并用靶子自己写的状态文件核对结果。
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -146,6 +146,32 @@ for (const [what, args, re] of guard) {
   const r = await call('launch', args);
   check(`launch refuses ${what}`, r.isError && re.test(r.text), r.text.slice(0, 100));
 }
+
+// 严格模式只有用户能开（这里用 CLI 的 call 充当“用户”，MCP 面没有这个入口）：只有清单里的程序能启动
+const userCall = (method, obj) => {
+  const f = path.join(os.tmpdir(), 'dx-e2e-call.json');
+  fs.writeFileSync(f, JSON.stringify(obj));
+  const r = spawnSync(cli, ['call', method, `@${f}`], { encoding: 'utf8' });
+  fs.rmSync(f, { force: true });
+  return r;
+};
+userCall('settings.set', { patch: { launch_strict: true, launch_allow: ['dx-testapp.exe'] } });
+const listedOk = await call('launch', { path: target, args: `"${stateFile}"`, wait_window_ms: 3000 });
+check('strict mode: a listed program still starts', !listedOk.isError && listedOk.json?.ok === true, listedOk.text.slice(0, 80));
+if (listedOk.json?.window?.hwnd) await call('window_op', { window: `hwnd:${listedOk.json.window.hwnd}`, op: 'close' });
+for (const [what, args] of [
+  ['calc.exe (not listed)', { path: 'calc.exe' }],
+  ['notepad (not listed, bare name)', { path: 'notepad' }],
+  ['cmd.exe (not listed)', { path: 'cmd.exe' }],
+  ['explorer.exe with arguments', { path: 'explorer.exe', args: 'calc.exe' }],
+  ['an unknown link scheme', { path: 'ms-msdt:/id PCWDiagnostic' }],
+]) {
+  const r = await call('launch', args);
+  check(`strict mode: launch refuses ${what}`, r.isError && /restricted/.test(r.text), r.text.slice(0, 90));
+}
+userCall('settings.set', { patch: { launch_strict: false, launch_allow: [] } });
+const back = await call('status', {});
+check('strict mode switched off again by the user', !back.isError);
 
 await call('window_op', { window: W, op: 'close' });
 child.stdin.end();

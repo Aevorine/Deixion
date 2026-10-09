@@ -215,7 +215,9 @@ Settings are stored in `settings.json` in the data folder. Writes go to a tempor
 |---|---|---|
 | `mode` | `background` / `foreground` (`background`) | Background or foreground mode, see above |
 | `allow_hop` | boolean (`false`) | Allow a brief switch to the foreground as a fallback |
-| `allow_shell_launch` | boolean (`false`) | Let `launch` start command shells and script hosts. Only the user can change it: the MCP tools and `batch` cannot |
+| `allow_shell_launch` | boolean (`false`) | Let `launch` start command shells, script hosts and interpreters. Only the user can change it: the MCP tools and `batch` cannot |
+| `launch_strict` | boolean (`false`) | Strict mode: `launch` may start only the programs in `launch_allow` (plus `http`, `https`, `mailto` and `ms-settings` links). Anything else is refused, `explorer.exe` with arguments included. Listing a shell or interpreter there is an explicit permission |
+| `launch_allow` | list of strings (`[]`) | Program names such as `notepad.exe`, or full paths. Edited on the Settings page ("Programs that may be started") |
 | `speed` | `instant` / `fast` / `smooth` (`fast`) | Mouse travel time in foreground mode: 0 ms / 120 ms / 380 ms (drag is timed separately) |
 | `overlay` | boolean (`true`) | Show the action trail in foreground mode |
 | `verify` | `auto` / `off` (`auto`) | Whether to check the UI for a change after an action, see "Verification" below |

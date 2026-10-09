@@ -58,7 +58,7 @@ Reading a screenshot: the grid has lines every 0.1; labels give λ across the to
 | `set_value` | Set a field or slider directly through UI Automation, no typing. Undoable. Fastest way to fill fields. |
 | `read` | Value, text or toggle state of an element. |
 | `window_op` | `minimize`, `maximize`, `restore`, `close`, `move`, `resize`, `topmost`, `focus` (focus needs the user's permission). |
-| `launch` | Start a program, document or URL without stealing focus; returns pid and the window once it appears. It refuses Deixion's own programs and, unless the user enabled `allow_shell_launch`, command shells, script hosts and interpreters (`cmd`, PowerShell, `wscript`, Python, Node, `.bat`, `.ps1`, `.url`, …) and link schemes other than `http`, `https`, `mailto` and `ms-settings`; do not try to get around that, ask the user. |
+| `launch` | Start a program, document or URL without stealing focus; returns pid and the window once it appears. It refuses Deixion's own programs and, unless the user enabled `allow_shell_launch`, command shells, script hosts and interpreters (`cmd`, PowerShell, `wscript`, Python, Node, `.bat`, `.ps1`, `.url`, …) and link schemes other than `http`, `https`, `mailto` and `ms-settings`; when the user turned on strict mode, only the programs on their list can be started. If `launch` is refused, do not try to get around it; tell the user which program you need. |
 | `wait` | `settle`, `element`, `gone`, `window`; `timeout_ms` (default 5000), `quiet_ms`. |
 | `batch` | Many steps in one call; `defaults` merged into every step; `stop_on_error` (default true). |
 | `undo` | Roll back the last `count` actions or a specific journal `id`. |

@@ -9,7 +9,7 @@ Deixion is verified end to end only (real executable, real input, user-visible r
 - [ ] Built with `cmake --build build` and ran the affected path in the real app
 - [ ] `node tools/i18n-check.mjs` passes (every user-visible Chinese string has an English entry)
 - [ ] `node tools/e2e/i18n-e2e.mjs` passes if the UI or settings changed
-- [ ] `tools/e2e/mcp-e2e.mjs` / `focus-e2e.ps1` / `e2e-setup.ps1` pass if the engine, input or installer changed
+- [ ] `tools/e2e/mcp-e2e.mjs` / `focus-e2e.ps1` (with `DX_E2E_ISOLATED=1` / `-Isolated`) / `console-e2e.ps1` / `e2e-setup.ps1` pass if the engine, input or installer changed
 
 ## Checklist
 

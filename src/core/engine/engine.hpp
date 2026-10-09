@@ -67,7 +67,8 @@ class Engine {
   using Fn = Res<Json> (Engine::*)(const Json&);
 
   // —— core.cpp
-  Res<Target> target_of(const Json& p, bool required);
+  // allow_minimized：窗口操作（还原 / 关闭 / 移动）要能作用在最小化的窗口上，其它操作仍然要求先还原。
+  Res<Target> target_of(const Json& p, bool required, bool allow_minimized = false);
   Res<PointRes> point_of(const Target& t, const Json& p, bool allow_hit);
   Outcome run_ladder(const Target& t, const std::string& action, const std::string& role, std::vector<Attempt> ladder, const Settings& st, bool verify_on, bool prelude_done = false);
   Json outcome_json(const Target& t, const PointRes* pr, const Outcome& o, u64 journal_id);

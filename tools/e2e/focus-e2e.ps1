@@ -1,7 +1,8 @@
 ﻿# 后台模式的核心承诺：不抢焦点。一个高优先级线程不停地读系统前台窗口（亚毫秒级），记录每一次变化，
 # 同时跑完整的 MCP 套件，断言测试靶子（dx-testapp）从头到尾没有成为前台窗口。
 # 不用 EVENT_SYSTEM_FOREGROUND：被前台锁拦下的激活也会发这个事件，但真正的前台窗口并没有变，会误报。
-param([int]$Runs = 4)
+# -Isolated：用 --inproc 在脚本自己的进程里跑 build 里的引擎，不碰正在运行的 Deixion（比如已安装的版本）；不加则连上当前运行的 Deixion。两种模式都只结束项目目录下的进程。
+param([int]$Runs = 4, [switch]$Isolated)
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Add-Type -TypeDefinition @'
 using System; using System.Text; using System.Diagnostics; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Threading;
@@ -26,7 +27,9 @@ public static class FgWatch {
   public static string[] Stop(){ stop = true; th.Join(1000); lock(Log){ return Log.ToArray(); } }
 }
 '@
-function Reset-Dx { Get-Process | Where-Object { $_.ProcessName -match '^(Deixion|deixion-cli|dx-testapp)$' } | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 800 }
+# 只结束可执行文件在本项目目录下的进程；真实安装的 Deixion 和当前会话的 MCP 服务不碰。
+function Reset-Dx { Get-Process | Where-Object { $_.ProcessName -match '^(Deixion|deixion-cli|dx-testapp)$' -and $_.Path -and $_.Path.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 800 }
+if ($Isolated) { $env:DX_E2E_ISOLATED = '1' }
 $fails = 0
 foreach ($run in 1..$Runs) {
   Reset-Dx

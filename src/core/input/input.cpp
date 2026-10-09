@@ -153,15 +153,33 @@ void remember_focus(HWND ctl) { note_focus(ctl, ctl); }
 
 HWND focus_hwnd(HWND top) { return focus_target(top); }
 
+// 经典控制台（conhost）会把输入缓冲区里相邻的相同按键事件合并成一个带重复计数的事件，
+// 只发 WM_CHAR 时 `--` 会变成 `---`、`ee` 变成 `eee`（是否多字取决于读取方的时序）。
+// 每个字符后面补一个按键抬起消息，相邻事件就不再相同，也就不会被合并；实测整条命令逐字正确。
+static bool is_console_window(HWND h) {
+  wchar_t cls[64]{};
+  GetClassNameW(h, cls, 64);
+  return wcscmp(cls, L"ConsoleWindowClass") == 0;
+}
+
+static void console_key_release(HWND f, wchar_t ch) {
+  const SHORT scan = VkKeyScanW(ch);
+  const u16 vk = scan == -1 ? static_cast<u16>(VK_PACKET) : static_cast<u16>(scan & 0xFF);
+  smsg(f, WM_KEYUP, vk, key_lp(vk, true, false));
+}
+
 Res<void> msg_text(HWND dest, const std::wstring& text, bool direct) {
   HWND f = direct ? dest : focus_target(dest);
+  const bool console = is_console_window(f);
   for (wchar_t ch : text) {
     if (ch == L'\r') continue;
     if (ch == L'\n') {
       if (!smsg(f, WM_CHAR, L'\r', 1)) return fail(E_TIMEOUT, "target window did not respond (hung?)");
+      if (console) console_key_release(f, L'\r');
       continue;
     }
     if (!smsg(f, WM_CHAR, ch, 1)) return fail(E_TIMEOUT, "target window did not respond (hung?)");
+    if (console) console_key_release(f, ch);
   }
   if (direct) note_focus(dest, dest);
   return {};

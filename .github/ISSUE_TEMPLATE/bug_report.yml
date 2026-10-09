@@ -12,7 +12,7 @@ body:
     attributes:
       label: Deixion version / 版本
       description: Settings → Updates and about, or `deixion-cli --version`.
-      placeholder: "1.0.4"
+      placeholder: "1.0.5"
     validations:
       required: true
   - type: input

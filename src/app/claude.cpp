@@ -122,8 +122,12 @@ Json config_snippet() {
   return j;
 }
 
+// 端到端测试设 DEIXION_NO_CLAUDE=1：不碰真实的 Claude Code 配置（MCP 登记与 skill）。
+bool skip_for_tests() { return GetEnvironmentVariableW(L"DEIXION_NO_CLAUDE", nullptr, 0) != 0; }
+
 Res<Json> install() {
   Json out = Json::object();
+  if (skip_for_tests()) return out.set("skill", "skipped").set("mcp", "skipped");
   if (fs::exists(skill_src() / L"SKILL.md")) {
     if (!copy_tree(skill_src(), skill_dst())) return fail(E_IO, "cannot copy the skill into ~/.claude/skills");
     out.set("skill", "installed");
@@ -147,6 +151,7 @@ Res<Json> install() {
 
 Res<Json> remove() {
   Json out = Json::object();
+  if (skip_for_tests()) return out.set("skill", "skipped").set("mcp", "skipped");
   const fs::path cc = find_claude();
   if (!cc.empty()) {
     auto r = run(L"cmd.exe /d /s /c \"\"" + cc.wstring() + L"\" mcp remove deixion --scope user\"");

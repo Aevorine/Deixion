@@ -17,6 +17,12 @@ Kill-Dx
 if (Test-Path $base) { Remove-Item -Recurse -Force $base }
 New-Item -ItemType Directory $base | Out-Null
 $uk = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Deixion'
+# 这个脚本不碰真实环境：不动 Claude Code 的 MCP 登记与 skill（程序见到该变量就跳过），真实安装的卸载注册表项先备份、结束时恢复。
+$env:DEIXION_NO_CLAUDE = '1'
+$ukBackup = Join-Path $env:TEMP 'dx-e2e-uninstall-key.reg'
+Remove-Item $ukBackup -ErrorAction SilentlyContinue
+$hadKey = Test-Path $uk
+if ($hadKey) { reg export 'HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Deixion' $ukBackup /y | Out-Null }
 
 "=== 1. fresh install: path with spaces, parent not named Deixion, /D= quoted ==="
 $r = Run-Setup @("/S", "`"/D=$base\Pick Me`"", "/CLAUDE=0", "/AUTOSTART=0", "/STARTMENU=0", "`"/LOG=$base\i.log`"")
@@ -66,4 +72,6 @@ Check 'user data kept (no /PURGE)' (Test-Path "$env:LOCALAPPDATA\Deixion")
 Start-Sleep -Seconds 4
 Check 'temp uninstaller copy cleaned' (@(Get-ChildItem $env:TEMP -Filter 'Deixion-uninstall-*.exe' -ErrorAction SilentlyContinue).Count -eq 0)
 
+Remove-Item Env:DEIXION_NO_CLAUDE -ErrorAction SilentlyContinue
+if ($hadKey -and (Test-Path $ukBackup)) { reg import $ukBackup 2>$null | Out-Null; Remove-Item $ukBackup -ErrorAction SilentlyContinue; Check 'real uninstall entry restored' (Test-Path $uk) }
 "`n=== RESULT: $fails failure(s) ==="

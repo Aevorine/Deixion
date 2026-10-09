@@ -30,7 +30,7 @@ CI does the same on a Windows runner with a pinned, hash-checked llvm-mingw and 
 No unit tests. Run the real thing and look at the result:
 
 - `tools/e2e/mcp-e2e.mjs`, `mcp-stress.mjs`, `focus-e2e.ps1`: engine, input, and “the test target never becomes the foreground window”.
-- `tools/e2e/e2e-setup.ps1`: install, upgrade over locked files, damaged-package rollback, uninstall. Note that its uninstall step also removes the MCP registration and skill from the current user's Claude Code configuration; reconnect afterwards.
+- `tools/e2e/e2e-setup.ps1`: install, upgrade over locked files, damaged-package rollback, uninstall. It sets `DEIXION_NO_CLAUDE=1` so the program leaves your Claude Code registration and skill alone, and it backs up and restores the real install's uninstall entry.
 - `tools/e2e/i18n-e2e.mjs`: the real app in both languages through the WebView2 debugging port. Pick a port outside `netsh int ipv4 show excludedportrange protocol=tcp`.
 - `node tools/i18n-check.mjs`: every Chinese string in the code has an English entry.
 

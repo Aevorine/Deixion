@@ -1,0 +1,75 @@
+/* 设计令牌：全站唯一的取值来源。样式只准 var(--x)，不写字面量色值与字号。
+   <html> 无 data-theme = 跟随系统；data-theme="light|dark" = 用户强制。 */
+:root {
+  color-scheme: light dark;
+
+  /* 中性色带一点青蓝（色相约 215°）；一个强调色；三个语义色。亮暗各一行。 */
+  --c-bg:          light-dark(#edf0f3, #14181c);
+  --c-surface:     light-dark(#f7f9fa, #1a1f24);
+  --c-surface-2:   light-dark(#e4e9ed, #232a31);
+  --c-surface-3:   light-dark(#d9e0e6, #2c353d);
+  --c-line:        light-dark(#cfd7de, #2f3942);
+  --c-line-soft:   light-dark(#dce2e8, #262e36);
+  --c-text:        light-dark(#1d252c, #dbe2e8);
+  --c-text-2:      light-dark(#46525e, #aab6c1);
+  --c-text-3:      light-dark(#566370, #8f9ca8);
+  --c-accent:      light-dark(#1d6585, #7fc3d8);
+  --c-accent-2:    light-dark(#2a7f9f, #5fa9c1);
+  --c-accent-soft: light-dark(#d5e6ee, #1d3a47);
+  --c-on-accent:   light-dark(#f4fafc, #0b1a20);
+  --c-ok:          light-dark(#25704a, #66c58e);
+  --c-ok-soft:     light-dark(#d8eadf, #1c3528);
+  --c-warn:        light-dark(#85580a, #e0aa5a);
+  --c-warn-soft:   light-dark(#f0e3cd, #3a2f1b);
+  --c-danger:      light-dark(#a8363d, #ef8d8a);
+  --c-danger-soft: light-dark(#f0d7d8, #3c2527);
+  --c-shadow:      light-dark(rgb(25 40 55 / 0.10), rgb(0 0 0 / 0.42));
+  --c-scrim:       light-dark(rgb(25 35 45 / 0.34), rgb(0 0 0 / 0.55));
+  --c-grid:        light-dark(rgb(29 101 133 / 0.16), rgb(127 195 216 / 0.14));
+
+  /* 字体：英文与标点用 Times New Roman，汉字用宋体；字号只用小四 / 四号两档为主 */
+  --font: "Times New Roman", "SimSun", "NSimSun", "宋体", "Noto Serif CJK SC", serif;
+  --fs-meta: 10.5pt;
+  --fs-body: 12pt;
+  --fs-title: 14pt;
+  --fs-num: 18pt;
+  --fs-hero: 26pt;
+  --fw-regular: 400;
+  --fw-bold: 700;
+  --lh: 1.5;
+
+  /* 间距基准 × 密度系数 */
+  --density: 1;
+  --sp-1: calc(4px * var(--density));
+  --sp-2: calc(8px * var(--density));
+  --sp-3: calc(12px * var(--density));
+  --sp-4: calc(16px * var(--density));
+  --sp-5: calc(24px * var(--density));
+
+  --r-1: 5px;
+  --r-2: 8px;
+  --r-3: 12px;
+  --r-pill: 999px;
+  --shadow-1: 0 1px 2px var(--c-shadow);
+  --shadow-2: 0 8px 28px var(--c-shadow);
+
+  --icon: 20px;
+  --icon-stroke: 1.7;
+  --row-h: calc(34px * var(--density));
+  --control-h: 32px;
+  --rail-w: 56px;
+  --status-h: 30px;
+
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"]  { color-scheme: dark; }
+:root[data-density="compact"] { --density: 0.82; }
+:root[data-density="relaxed"] { --density: 1.18; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-1: 0ms; --dur-2: 0ms; }
+}

@@ -1,0 +1,58 @@
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--c-bg);
+  color: var(--c-text);
+  font: var(--fw-regular) var(--fs-body) / var(--lh) var(--font);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+h1, h2, h3, p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: var(--c-accent); text-decoration: none; }
+code, pre, .mono { font-family: var(--font); }
+::selection { background: var(--c-accent-soft); }
+input, textarea, .selectable, .selectable * { user-select: text; }
+
+/* 滚动条：细、低对比，悬停加深 */
+* { scrollbar-width: thin; scrollbar-color: var(--c-surface-3) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--c-surface-3); border-radius: var(--r-pill); border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--c-text-3); background-clip: padding-box; border: 2px solid transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; border-radius: var(--r-1); }
+
+/* 外壳：左侧图标栏 + 主区（页面 + 底部状态栏） */
+#app { display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); height: 100vh; }
+.rail {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-1);
+  padding: var(--sp-3) 0; background: var(--c-surface); border-right: 1px solid var(--c-line);
+}
+.rail .grow { flex: 1; }
+.rail .logo { width: 30px; height: 30px; margin-bottom: var(--sp-3); display: grid; place-items: center; }
+.rail .logo img { width: 28px; height: 28px; display: block; }
+.main { display: grid; grid-template-rows: minmax(0, 1fr) var(--status-h); min-width: 0; min-height: 0; }
+.stage { position: relative; min-height: 0; min-width: 0; overflow: hidden; }
+.page { position: absolute; inset: 0; padding: var(--sp-3); overflow: auto; display: none; }
+.page.on { display: block; }
+.page > .grid { min-height: 100%; }
+.statusbar {
+  display: flex; align-items: center; gap: var(--sp-4); padding: 0 var(--sp-4);
+  background: var(--c-surface); border-top: 1px solid var(--c-line); color: var(--c-text-2); font-size: var(--fs-meta); white-space: nowrap; overflow: hidden;
+}
+.statusbar .sp { flex: 1; }
+.statusbar .item { display: inline-flex; align-items: center; gap: var(--sp-1); }
+
+/* 版面栅格：页面用 12 列，面板按 span 占列，行按内容或 fr 分配，永远填满视口 */
+.grid { display: grid; gap: var(--sp-3); grid-template-columns: repeat(12, minmax(0, 1fr)); align-content: stretch; height: 100%; }
+.grid > * { min-width: 0; min-height: 0; }
+.s3 { grid-column: span 3; } .s4 { grid-column: span 4; } .s5 { grid-column: span 5; } .s6 { grid-column: span 6; }
+.s7 { grid-column: span 7; } .s8 { grid-column: span 8; } .s9 { grid-column: span 9; } .s12 { grid-column: span 12; }
+@media (max-width: 1100px) { .s3 { grid-column: span 6; } .s4, .s5 { grid-column: span 6; } .s7, .s8, .s9 { grid-column: span 12; } }
+@media (max-width: 760px) { .s3, .s4, .s5, .s6 { grid-column: span 12; } }
+.fill { height: 100%; }

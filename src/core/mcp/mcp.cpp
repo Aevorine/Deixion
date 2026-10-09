@@ -107,7 +107,7 @@ const std::vector<Tool>& tools() {
                          {"timeout_ms", P("integer", "Default 5000")}, {"quiet_ms", P("integer", "Settle window")}},
                         {"for"})});
     v.push_back({"batch", "batch",
-                 "Run many steps in one call (one round trip, each step milliseconds). steps:[{do:\"click\",...},{do:\"type\",...},{do:\"wait\",for:\"settle\"}]. defaults are merged into every step, e.g. {window:\"Notepad\"}. Prefer this for any sequence.",
+                 "Run many steps in one call. Read status.capture_policy first: before_each requires a fresh screenshot and model inspection before each input action, so do not batch multiple inputs in that mode. steps:[{do:\"click\",...},{do:\"wait\",for:\"settle\"}]. defaults are merged into every step.",
                  Schema({{"steps", P("array", "Array of {do:<tool method>, ...params}")}, {"defaults", P("object", "Params merged into each step")}, {"stop_on_error", P("boolean", "Default true")}}, {"steps"})});
     v.push_back({"undo", "rollback", "Roll back the last N reversible actions (value changes, toggles, window moves, typed text best-effort).", Schema({{"count", P("integer", "Default 1")}, {"id", P("integer", "Specific journal id")}})});
     v.push_back({"status", "status", "Engine status: mode (background/foreground), paused, learned strategy stats. detail=journal|experience|perf|log for more.",

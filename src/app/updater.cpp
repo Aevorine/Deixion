@@ -52,7 +52,8 @@ bool trusted_host(const std::wstring& h) {
     const std::wstring t(s);
     return h.size() >= t.size() && _wcsicmp(h.c_str() + h.size() - t.size(), t.c_str()) == 0;
   };
-  return ends(L"github.com") || ends(L"githubusercontent.com");
+  return _wcsicmp(h.c_str(), L"github.com") == 0 || ends(L".github.com") ||
+         _wcsicmp(h.c_str(), L"githubusercontent.com") == 0 || ends(L".githubusercontent.com");
 }
 
 Res<void> http_get(const std::string& url, std::string* body, const std::wstring* file, const std::function<void(u64, u64)>& progress) {
@@ -177,12 +178,13 @@ void Updater::set_error(const std::string& m) {
 void Updater::check(bool) {
   {
     std::lock_guard lk(mu_);
-    if (busy_) return;
+    // 已校验的包保留到安装，重复检查不破坏 ready 状态。
+    if (busy_ || state_ == "ready") return;
     busy_ = true;
     state_ = "checking";
     error_.clear();
-    if (worker_.joinable()) worker_.join();
   }
+  if (worker_.joinable()) worker_.join();
   publish();
   worker_ = std::thread([this] {
     std::string body;
@@ -224,8 +226,8 @@ void Updater::download() {
     busy_ = true;
     state_ = "downloading";
     got_ = total_ = 0;
-    if (worker_.joinable()) worker_.join();
   }
+  if (worker_.joinable()) worker_.join();
   publish();
   worker_ = std::thread([this] {
     std::string asset, sums;

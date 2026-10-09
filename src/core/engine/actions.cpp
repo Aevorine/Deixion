@@ -471,6 +471,11 @@ Res<Json> Engine::a_set_value(const Json& p) {
   ladder.push_back({"msg_settext", [&]() -> Res<void> {
                       if (!t.hwnd) return fail(E_UNSUPPORTED, "needs a window");
                       HWND c = win::deepest_child_at(t.hwnd, pr.px);
+                      wchar_t cls[128]{};
+                      GetClassNameW(c, cls, 128);
+                      if (_wcsicmp(cls, L"Edit") != 0 && _wcsnicmp(cls, L"RichEdit", 8) != 0)
+                        return fail(E_UNSUPPORTED, "WM_SETTEXT requires a native edit control");
+                      if (GetWindowLongPtrW(c, GWL_STYLE) & ES_READONLY) return fail(E_DENIED, "element is read-only");
                       const std::wstring v = text::widen(p["value"].is_str() ? p["value"].as_str() : p["value"].dump());
                       DWORD_PTR res = 0;
                       std::wstring prev(4096, L'\0');

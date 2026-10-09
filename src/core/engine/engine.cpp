@@ -149,6 +149,7 @@ Res<Engine::Target> Engine::target_of(const Json& p, bool required, bool allow_m
   auto r = win::resolve(spec);
   if (!r) return std::unexpected(r.error());
   t.hwnd = *r;
+  if (IsIconic(t.hwnd) && !allow_minimized) return fail(E_UNSUPPORTED, "window is minimized; restore it first (window op=restore)");
   DWORD pid = 0;
   GetWindowThreadProcessId(t.hwnd, &pid);
   t.pid = pid;

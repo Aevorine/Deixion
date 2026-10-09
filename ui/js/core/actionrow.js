@@ -21,7 +21,7 @@ export function actionCells(a) {
   return [
     h('span', { style: { color: 'var(--c-text-3)', width: '4.8em' } }, fmt.time(a.ts)),
     h('span', { class: 'chip accent', style: { minWidth: '5em' }, tip: m.label }, icon(m.icon, 'sm'), m.label),
-    h('span', { style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }, tip: a.title || a.app }, a.app || '—', a.title ? h('span', { style: { color: 'var(--c-text-3)' } }, ` · ${a.title}`) : null),
+    h('span', { 'data-user': '', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }, tip: a.title || a.app }, a.app || '—', a.title ? h('span', { style: { color: 'var(--c-text-3)' } }, ` · ${a.title}`) : null),
     h('span', { class: 'chip' }, strategyName(a.strategy)),
     h('span', { style: { width: '5.6em', textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }, fmt.us(a.us)),
     h('span', { style: { color: a.ok ? 'var(--c-ok)' : 'var(--c-danger)', display: 'inline-flex' }, tip: stateTip }, icon(stateIcon, 'sm')),

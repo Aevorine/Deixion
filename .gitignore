@@ -30,3 +30,4 @@ CLAUDE.local.md
 
 # 浏览器自动化的临时目录
 .playwright-mcp/
+.codex/

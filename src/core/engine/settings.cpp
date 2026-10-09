@@ -28,6 +28,7 @@ Json Settings::to_json() const {
   Json j = Json::object();
   j.set("mode", mode).set("allow_hop", allow_hop).set("allow_shell_launch", allow_shell_launch).set("launch_strict", launch_strict).set("speed", speed).set("overlay", overlay).set("verify", verify);
   j.set("jpeg_quality", jpeg_quality).set("max_image_dim", max_image_dim).set("grid_default", grid_default).set("log_level", log_level);
+  j.set("capture_policy", capture_policy);
   j.set("autostart", autostart).set("check_updates", check_updates).set("close_to_tray", close_to_tray).set("paused", paused);
   j.set("theme", theme).set("density", density).set("language", language).set("hotkeys", hotkeys);
   Json allow = Json::array();
@@ -49,6 +50,7 @@ Settings Settings::from_json(const Json& j) {
   if (one_of(j["speed"].as_str(), {"instant", "fast", "smooth"})) s.speed = j["speed"].as_str();
   if (j.has("overlay")) s.overlay = j["overlay"].as_bool(s.overlay);
   if (one_of(j["verify"].as_str(), {"auto", "off"})) s.verify = j["verify"].as_str();
+  if (one_of(j["capture_policy"].as_str(), {"before_each", "adaptive", "off"})) s.capture_policy = j["capture_policy"].as_str();
   if (j.has("jpeg_quality")) s.jpeg_quality = static_cast<int>(std::clamp<i64>(j["jpeg_quality"].as_int(78), 30, 100));
   if (j.has("max_image_dim")) s.max_image_dim = static_cast<int>(std::clamp<i64>(j["max_image_dim"].as_int(1568), 400, 4096));
   if (j.has("grid_default")) s.grid_default = j["grid_default"].as_bool(true);

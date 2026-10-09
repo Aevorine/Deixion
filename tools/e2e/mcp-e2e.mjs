@@ -97,6 +97,17 @@ check('locate resolves a Meridian point', !loc.isError, loc.text.slice(0, 100));
 
 const st = await call('status', { detail: 'perf' });
 check('status/perf works', !st.isError);
+check('screenshot policy defaults to before_each', st.json?.capture_policy === 'before_each');
+
+const badValue = await call('set_value', { window: W, at: '0.98,0.98', value: 'must not replace the window title', via: 'msg_settext' });
+const titleAfter = await call('windows', { filter: W });
+check('non-edit set_value is refused without changing the window title', badValue.isError && titleAfter.text.includes('"' + W + '"'), badValue.text.slice(0, 100));
+await call('window_op', { window: W, op: 'minimize' });
+await sleep(200);
+const minimizedClick = await call('click', { window: W, at: '0.5,0.5' });
+check('minimized window refuses coordinate input', minimizedClick.isError && /minimized/.test(minimizedClick.text));
+const restored = await call('window_op', { window: W, op: 'restore' });
+check('minimized window can still be restored', !restored.isError);
 
 // 权限边界：batch 不能被用来调用用户专属的控制方法
 const esc = await call('batch', {

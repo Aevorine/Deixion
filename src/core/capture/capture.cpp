@@ -120,6 +120,7 @@ Res<Shot> shoot_window(HWND h) {
   }
   const BOOL ok = PrintWindow(h, im->dc(), PW_CLIENTONLY | PW_RENDERFULLCONTENT);
   if (!ok || looks_blank(*im)) {
+      if (!unoccluded(h, fr)) return fail(E_UNSUPPORTED, "target cannot render a background screenshot; screen fallback would capture another window");
     HDC sdc = GetDC(nullptr);
     const BOOL ok2 = BitBlt(im->dc(), 0, 0, fr.r.w, fr.r.h, sdc, fr.r.x, fr.r.y, SRCCOPY | CAPTUREBLT);
     ReleaseDC(nullptr, sdc);

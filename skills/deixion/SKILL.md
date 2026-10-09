@@ -25,9 +25,11 @@ Reading a screenshot: the grid has lines every 0.1; labels give λ across the to
 
 ## The loop
 
+Call `status` first and follow `capture_policy`. The default `before_each` requires a fresh screenshot, image inspection and target selection before each input action. Do not batch multiple input actions under this policy: the model must inspect each new image before deciding the next action. `adaptive` permits element-based batches but requires a new image after layout changes; `off` captures on demand. This is a model workflow preference, not an engine guarantee that the model viewed the image. Normalized coordinates describe the current client rectangle; responsive layouts still require fresh localization after resizing.
+
 1. `windows` → pick the window.
 2. `elements` (filtered with `query`/`role`, or `interactive:true`) → ids and centres. Use `screenshot` with `elements:true` only when you need to see the layout; the element list is cheaper and exact.
-3. Act with **one `batch`** for any sequence of two or more steps — one round trip, milliseconds per step:
+3. In `before_each`, inspect a fresh screenshot before each input and issue one input action at a time. With `adaptive` or `off`, use **one `batch`** for a stable sequence — one round trip, milliseconds per step:
    ```json
    {"defaults":{"window":"exe:notepad.exe"},
     "steps":[

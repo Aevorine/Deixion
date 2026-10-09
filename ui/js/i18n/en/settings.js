@@ -25,6 +25,10 @@ export default {
   '用窗口事件确认操作是否生效': 'Use window events to confirm the action took effect',
 
   '截图与日志': 'Screenshots and logs',
+  '模型截图策略': 'Model screenshot policy',
+  '每步操作前截图': 'Screenshot before every action',
+  '布局变化时截图': 'Screenshot when layout changes',
+  '按需截图': 'Screenshot on demand',
   'JPEG 质量': 'JPEG quality',
   '截图最长边（像素）': 'Screenshot longest edge (px)',
   '截图默认带网格': 'Grid on screenshots by default',

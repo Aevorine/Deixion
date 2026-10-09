@@ -4,6 +4,24 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-10-09
+
+### Fixed
+- Checking again after a verified update is ready retains the installer and the install button.
+- Update worker joins happen outside the state mutex to avoid blocking the worker's final notification.
+- GitHub update host checks require an exact domain or a subdomain boundary.
+- Background capture refuses a screen fallback when another window covers the target; unrelated pixels are never reported as its screenshot.
+- The `set_value` message fallback only writes to native Edit / RichEdit controls and refuses read-only controls. It no longer changes a Chromium window caption when a web input rejects UI Automation.
+- Minimized windows refuse coordinate input even when Windows reports a nonempty client rectangle. Restore operations remain supported.
+
+### Added
+- Persisted, bilingual model screenshot policy: `before_each` (default), `adaptive`, `off`. MCP status exposes it and the bundled skill describes the screenshot / inspect / action loop. The policy is model guidance, not proof of image comprehension.
+- End-to-end regression coverage for update readiness, non-edit value writes and minimized input.
+- Application compatibility and performance roadmap in `docs/CONTROL-ROADMAP.md`.
+
+### Changed
+- Dynamic application names and window titles are marked as user content so language checks do not mistake them for untranslated interface strings.
+
 ## [1.0.5] - 2026-10-09
 
 ### Fixed
@@ -57,6 +75,7 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 - `batch` is limited to the actions and queries MCP already exposes; input actions cannot operate Deixion's own windows; the pipe client verifies the server runs as the current account.
 
 [1.0.5]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.5
+[1.0.6]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.6
 [1.0.4]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.4
 [1.0.3]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.3
 [1.0.2]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.2

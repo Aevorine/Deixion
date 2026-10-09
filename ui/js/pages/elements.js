@@ -36,7 +36,7 @@ registerPage({
       render: (n) => [
         h('span', { style: { width: '3.2em', color: 'var(--c-text-3)' } }, n.id),
         h('span', { class: 'chip accent', style: { minWidth: '5.6em', justifyContent: 'center' } }, n.role),
-        h('span', { style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' } }, n.name || h('span', { style: { color: 'var(--c-text-3)' } }, n.aid || t('（无名称）'))),
+        h('span', { ...(n.name || n.aid ? { 'data-user': '' } : {}), style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' } }, n.name || h('span', { style: { color: 'var(--c-text-3)' } }, n.aid || t('（无名称）'))),
         h('span', { style: { color: 'var(--c-text-3)', width: '9.5em', textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }, n.at),
         ...(n.state || []).map((s) => chip(s, s === 'disabled' ? 'warn' : '')),
       ],

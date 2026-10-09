@@ -325,3 +325,9 @@ There are only two third-party components: the WebView2 SDK and KaTeX. Their lic
 - On power loss, a few of the most recent records may be lost. On a crash, up to 11 experience-store updates may not yet be on disk.
 - Logging is asynchronous. If the process crashes, log lines still in the queue (up to about 500 ms) may be lost.
 - The page list follows the code: there are 10 pages (Overview, Locate, Elements, Actions, Experience, Logs, Performance, Claude Code, Guide, Settings).
+
+## Update: 1.0.6
+
+Settings → Screenshots and logs → Model screenshot policy defaults to a screenshot before each action, with adaptive and on-demand options. The Claude skill reads `status.capture_policy`; this guides the model and does not prove image comprehension.
+
+Fixed verified-update state loss, unrelated pixels in occluded-window capture, window-caption writes on unsupported web editors, and input on minimized windows. See the [control roadmap](docs/CONTROL-ROADMAP.md) for channel tradeoffs and proposed improvements. ChatGPT desktop background input remains incomplete; the PowerShell→Codex CLI weather example produced a result.

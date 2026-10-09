@@ -18,6 +18,7 @@ struct Settings {
   std::string speed{"fast"};
   bool overlay{true};
   std::string verify{"auto"};
+  std::string capture_policy{"before_each"};
   int jpeg_quality{78};
   int max_image_dim{1568};
   bool grid_default{true};

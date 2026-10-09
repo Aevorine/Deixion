@@ -340,6 +340,7 @@ Res<Json> Engine::q_status(const Json&) {
   Json j = Json::object();
   j.set("ok", true).set("version", DX_VERSION).set("uptime_s", (unix_ms() - started_ms_) / 1000).set("mode", st.mode).set("paused", st.paused);
   j.set("allow_hop", st.allow_hop).set("calls", calls_.load()).set("errors", errors_.load());
+  j.set("capture_policy", st.capture_policy);
   Json c = Json::object();
   c.set("name", cpu().brand).set("threads", cpu().logical).set("bmi2", cpu().bmi2).set("avx2", cpu().avx2).set("sse42", cpu().sse42);
   j.set("cpu", std::move(c));

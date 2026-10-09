@@ -52,6 +52,7 @@ registerPage({
 
     const shot = panel({
       label: t('截图与日志'), body: h('div', { class: 'rows' },
+        row(t('模型截图策略'), reg('capture_policy', select({ value: s().capture_policy || 'before_each', options: [{ value: 'before_each', label: t('每步操作前截图') }, { value: 'adaptive', label: t('布局变化时截图') }, { value: 'off', label: t('按需截图') }], onChange: (v) => patchSettings({ capture_policy: v }) }))),
         row(t('JPEG 质量'), reg('jpeg_quality', slider({ min: 30, max: 100, value: s().jpeg_quality, onChange: (v) => patchSettings({ jpeg_quality: v }), fmt: (v) => `${v}` }))),
         row(t('截图最长边（像素）'), reg('max_image_dim', slider({ min: 400, max: 4096, step: 16, value: s().max_image_dim, onChange: (v) => patchSettings({ max_image_dim: v }), fmt: (v) => `${v}` }))),
         row(t('截图默认带网格'), reg('grid_default', toggle({ value: s().grid_default, onChange: (v) => patchSettings({ grid_default: v }) }))),
@@ -162,6 +163,7 @@ registerPage({
       const x = s();
       ctl.mode.set(x.mode); ctl.paused.set(x.paused); ctl.allow_hop.set(x.allow_hop); ctl.allow_shell_launch.set(x.allow_shell_launch); ctl.launch_strict.set(x.launch_strict); ctl.overlay.set(x.overlay); ctl.speed.set(x.speed);
       ctl.verify.set(x.verify !== 'off'); ctl.jpeg_quality.set(x.jpeg_quality); ctl.max_image_dim.set(x.max_image_dim); ctl.grid_default.set(x.grid_default);
+      ctl.capture_policy.value = x.capture_policy || 'before_each';
       ctl.log_level.value = x.log_level; ctl.theme.set(x.theme); ctl.language.set(x.language || 'auto'); ctl.density.set(x.density); ctl.autostart.set(x.autostart); ctl.close_to_tray.set(x.close_to_tray); ctl.check_updates.set(x.check_updates);
     };
     bus.on('settings', syncAll);

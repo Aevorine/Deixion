@@ -7,6 +7,7 @@ import { registerPage } from '../core/registry.js';
 import { codeOf, decode, MAX_LEVEL, cellSize } from '../core/geo.js';
 import { tex } from '../core/math.js';
 import { throttleFrame } from '../core/fmt.js';
+import { t } from '../core/i18n.js';
 
 registerPage({
   id: 'locate', icon: 'locate', tip: '定位', order: 20,
@@ -22,10 +23,10 @@ registerPage({
     let liveTimer = 0;
     let wins = [];
 
-    const winSel = select({ options: [{ value: 'screen', label: '整个屏幕' }], value: 'screen', onChange: (v) => { target = v; trail = []; region = { a: { lam: 0, phi: 0 }, b: { lam: 1, phi: 1 } }; pin = null; shoot(); } });
+    const winSel = select({ options: [{ value: 'screen', label: t('整个屏幕') }], value: 'screen', onChange: (v) => { target = v; trail = []; region = { a: { lam: 0, phi: 0 }, b: { lam: 1, phi: 1 } }; pin = null; shoot(); } });
     winSel.style.width = '260px';
     const gridSeg = seg({ value: '10', options: ['5', '10', '20'].map((v) => ({ value: v, label: v })), onChange: () => paintGrid() });
-    gridSeg.setAttribute('data-tip', '网格密度');
+    gridSeg.setAttribute('data-tip', t('网格密度'));
     const img = h('img', { class: 'shot-img', alt: '', draggable: 'false' });
     const gridEl = h('div', { class: 'shot-grid' });
     const cross = h('div', { class: 'shot-cross' }, h('i', { class: 'h' }), h('i', { class: 'v' }));
@@ -33,7 +34,7 @@ registerPage({
     const tag = h('div', { class: 'shot-tag' });
     const shot = h('div', { class: 'shot' }, img, gridEl, cross, pinEl, tag);
     const stage = h('div', { class: 'shot-stage' }, shot);
-    const emptyEl = h('div', { class: 'shot-empty' }, empty('选择窗口后点击“截图”', 'camera'));
+    const emptyEl = h('div', { class: 'shot-empty' }, empty(t('选择窗口后点击“截图”'), 'camera'));
     stage.append(emptyEl);
 
     const fit = () => {
@@ -64,7 +65,7 @@ registerPage({
     const trailEl = h('div', { class: 'tabs' });
 
     function paintTrail() {
-      trailEl.replaceChildren(h('button', { class: trail.length ? '' : 'on', onClick: () => zoomTo([]) }, '全部'), ...trail.map((c, i) => h('button', { class: i === trail.length - 1 ? 'on' : '', onClick: () => zoomTo(trail.slice(0, i + 1)) }, c)));
+      trailEl.replaceChildren(h('button', { class: trail.length ? '' : 'on', onClick: () => zoomTo([]) }, t('全部')), ...trail.map((c, i) => h('button', { class: i === trail.length - 1 ? 'on' : '', onClick: () => zoomTo(trail.slice(0, i + 1)) }, c)));
     }
 
     function paintPin() {
@@ -77,35 +78,35 @@ registerPage({
 
     function paintInfo() {
       infoBody.replaceChildren();
-      if (!pin || !frame) { infoBody.append(empty('点击图像钉一个点', 'pin')); return; }
+      if (!pin || !frame) { infoBody.append(empty(t('点击图像钉一个点'), 'pin')); return; }
       const px = { x: Math.min(frame.w - 1, Math.floor(pin.lam * frame.w)), y: Math.min(frame.h - 1, Math.floor(pin.phi * frame.h)) };
-      const copyBtn = (t) => btn({ icon: 'copy', tip: '复制', kind: 'ghost', onClick: () => copy(t, call) });
+      const copyBtn = (txt) => btn({ icon: 'copy', tip: t('复制'), kind: 'ghost', onClick: () => copy(txt, call) });
       const line = (k, v, c) => h('div', { class: 'row' }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, h('span', null, v), c ? copyBtn(c) : null));
       infoBody.append(
-        line('λ 横向', pin.lam.toFixed(5), pin.lam.toFixed(5)),
-        line('φ 纵向', pin.phi.toFixed(5), pin.phi.toFixed(5)),
-        line('窗口内像素', `${px.x}, ${px.y}`, `${px.x},${px.y}`),
-        line('屏幕像素', `${frame.x + px.x}, ${frame.y + px.y}`, `${frame.x + px.x},${frame.y + px.y}`),
+        line(t('λ 横向'), pin.lam.toFixed(5), pin.lam.toFixed(5)),
+        line(t('φ 纵向'), pin.phi.toFixed(5), pin.phi.toFixed(5)),
+        line(t('窗口内像素'), `${px.x}, ${px.y}`, `${px.x},${px.y}`),
+        line(t('屏幕像素'), `${frame.x + px.x}, ${frame.y + px.y}`, `${frame.x + px.x},${frame.y + px.y}`),
       );
       for (let lv = 1; lv <= MAX_LEVEL; lv++) {
         const code = codeOf(pin.lam, pin.phi, lv);
         const cs = cellSize(lv);
         infoBody.append(h('div', { class: 'row' },
-          h('div', { class: 'k' }, h('span', { class: 'chip accent' }, `${lv} 级`), ' ', h('span', { style: { fontWeight: 'bold', letterSpacing: '0.08em' } }, code)),
+          h('div', { class: 'k' }, h('span', { class: 'chip accent' }, t('{n} 级', { n: lv })), ' ', h('span', { style: { fontWeight: 'bold', letterSpacing: '0.08em' } }, code)),
           h('div', { class: 'v' }, h('span', { style: { color: 'var(--c-text-3)' } }, `${(cs.w * frame.w).toFixed(0)}×${(cs.h * frame.h).toFixed(0)} px`),
-            btn({ icon: 'zoomIn', tip: `放大到 ${code} 格`, kind: 'ghost', onClick: () => zoomTo([code]) }), copyBtn(code))));
+            btn({ icon: 'zoomIn', tip: t('放大到 {code} 格', { code }), kind: 'ghost', onClick: () => zoomTo([code]) }), copyBtn(code))));
       }
     }
 
     async function probe() {
       elemBody.replaceChildren();
-      if (!pin || target === 'screen') { elemBody.append(empty(target === 'screen' ? '选择具体窗口后显示该点的控件' : '—', 'elements')); return; }
+      if (!pin || target === 'screen') { elemBody.append(empty(target === 'screen' ? t('选择具体窗口后显示该点的控件') : '—', 'elements')); return; }
       try {
         const r = await call('locate', { window: target, at: `${pin.lam},${pin.phi}` });
         const e = r.interactive || r.element;
-        if (!e) { elemBody.append(empty('该点没有可识别的控件', 'elements')); return; }
+        if (!e) { elemBody.append(empty(t('该点没有可识别的控件'), 'elements')); return; }
         const line = (k, v) => h('div', { class: 'row' }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, v));
-        elemBody.append(line('类型', chip(e.role, 'accent')), line('名称', e.name || '—'), line('标识', e.aid || '—'), line('编号', e.id), line('可执行', (e.can || []).join(' · ') || '—'), line('状态', (e.state || []).join(' · ') || '正常'));
+        elemBody.append(line(t('类型'), chip(e.role, 'accent')), line(t('名称'), e.name || '—'), line(t('标识'), e.aid || '—'), line(t('编号'), e.id), line(t('可执行'), (e.can || []).join(' · ') || '—'), line(t('状态'), (e.state || []).join(' · ') || t('正常')));
       } catch (err) { elemBody.append(empty(err.message, 'alert')); }
     }
 
@@ -114,7 +115,7 @@ registerPage({
         const r = await call('windows', {});
         wins = r.windows || [];
         const cur = winSel.value;
-        winSel.replaceChildren(h('option', { value: 'screen' }, '整个屏幕'), ...wins.filter((w) => !w.minimized && w.client.w > 0).map((w) => h('option', { value: `hwnd:${w.hwnd}` }, `${w.exe} · ${w.title.slice(0, 40) || w.class}`)));
+        winSel.replaceChildren(h('option', { value: 'screen' }, t('整个屏幕')), ...wins.filter((w) => !w.minimized && w.client.w > 0).map((w) => h('option', { value: `hwnd:${w.hwnd}` }, `${w.exe} · ${w.title.slice(0, 40) || w.class}`)));
         winSel.value = [...winSel.options].some((o) => o.value === cur) ? cur : 'screen';
       } catch (e) { toast(e.message, 'danger'); }
     }
@@ -166,27 +167,27 @@ registerPage({
     });
 
     const doClick = (opts, tip) => asyncBtn({ icon: opts.icon, label: opts.label, tip, kind: opts.kind }, async () => {
-      if (!pin) throw new Error('先在图像上点一个点');
-      if (target === 'screen' && state.settings.mode !== 'foreground') toast('屏幕目标会落到该点下方的真实窗口', 'info', 2000);
+      if (!pin) throw new Error(t('先在图像上点一个点'));
+      if (target === 'screen' && state.settings.mode !== 'foreground') toast(t('屏幕目标会落到该点下方的真实窗口'), 'info', 2000);
       const r = await call('click', { window: target, at: `${pin.lam.toFixed(5)},${pin.phi.toFixed(5)}`, ...opts.params });
-      toast(`已${opts.label} · ${r.strategy || ''}${r.confirmed ? ' · 已确认' : ''}`, 'ok');
+      toast(t(opts.done) + ' · ' + (r.strategy || '') + (r.confirmed ? ' · ' + t('已确认') : ''), 'ok');
     });
 
     const livePulse = () => { clearTimeout(liveTimer); if (live && !document.hidden) shoot().catch(() => {}).finally(() => { liveTimer = setTimeout(livePulse, 700); }); else if (live) liveTimer = setTimeout(livePulse, 700); };
-    const liveSw = toggle({ value: false, tip: '实时刷新（约 1 帧/秒）', onChange: (v) => { live = v; if (v) livePulse(); else clearTimeout(liveTimer); } });
+    const liveSw = toggle({ value: false, tip: t('实时刷新（约 1 帧/秒）'), onChange: (v) => { live = v; if (v) livePulse(); else clearTimeout(liveTimer); } });
 
     const left = panel({
       cls: 's8', flush: true,
-      label: '截图',
-      acts: [winSel, btn({ icon: 'refresh', tip: '刷新窗口列表', kind: 'ghost', onClick: loadWindows }), gridSeg, h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px' } }, icon('clock', 'sm'), liveSw), asyncBtn({ icon: 'camera', label: '截图', kind: 'primary' }, () => shoot())],
+      label: t('截图'),
+      acts: [winSel, btn({ icon: 'refresh', tip: t('刷新窗口列表'), kind: 'ghost', onClick: loadWindows }), gridSeg, h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px' } }, icon('clock', 'sm'), liveSw), asyncBtn({ icon: 'camera', label: t('截图'), kind: 'primary' }, () => shoot())],
       body: [stage, h('div', { class: 'shot-foot' }, trailEl)],
     });
     left.body.classList.add('shot-body');
 
-    const maths = panel({ label: '映射', body: [tex('\\lambda=\\dfrac{x-x_0}{w},\\quad \\varphi=\\dfrac{y-y_0}{h}', { block: true }), tex('M(\\lambda,\\varphi)=\\mathrm{spread}(\\lfloor 2^{16}\\lambda\\rfloor)\\ll 1\\ \\lor\\ \\mathrm{spread}(\\lfloor 2^{16}\\varphi\\rfloor)', { block: true })] });
+    const maths = panel({ label: t('映射'), body: [tex('\\lambda=\\dfrac{x-x_0}{w},\\quad \\varphi=\\dfrac{y-y_0}{h}', { block: true }), tex('M(\\lambda,\\varphi)=\\mathrm{spread}(\\lfloor 2^{16}\\lambda\\rfloor)\\ll 1\\ \\lor\\ \\mathrm{spread}(\\lfloor 2^{16}\\varphi\\rfloor)', { block: true })] });
     const right = h('div', { class: 's4', style: { display: 'grid', gridTemplateRows: 'minmax(0, 1.4fr) minmax(0, 0.8fr) auto', gap: 'var(--sp-3)', minHeight: 0 } },
-      panel({ label: '钉点坐标', body: infoBody, acts: [doClick({ icon: 'actions', label: '点击', params: {} }, '在钉点点击'), doClick({ icon: 'actions', label: '双击', params: { count: 2 } }, '在钉点双击'), doClick({ icon: 'actions', label: '右键', params: { button: 'right' } }, '在钉点右键')] }),
-      panel({ label: '钉点处的控件', body: elemBody }),
+      panel({ label: t('钉点坐标'), body: infoBody, acts: [doClick({ icon: 'actions', label: t('点击'), done: '已点击', params: {} }, t('在钉点点击')), doClick({ icon: 'actions', label: t('双击'), done: '已双击', params: { count: 2 } }, t('在钉点双击')), doClick({ icon: 'actions', label: t('右键'), done: '已右键点击', params: { button: 'right' } }, t('在钉点右键'))] }),
+      panel({ label: t('钉点处的控件'), body: elemBody }),
       maths);
 
     root.append(h('div', { class: 'grid', style: { gridTemplateRows: 'minmax(0, 1fr)' } }, left, right));

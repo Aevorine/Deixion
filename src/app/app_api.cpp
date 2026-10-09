@@ -6,6 +6,7 @@
 #include "app/claude.hpp"
 #include "app/sys.hpp"
 #include "app/updater.hpp"
+#include "core/base/i18n.hpp"
 #include "core/base/log.hpp"
 #include "core/base/paths.hpp"
 #include "core/base/text.hpp"
@@ -84,6 +85,7 @@ Res<Json> App::call_app(const std::string& m, const Json& p) {
     j.set("hotkeys", hotkeys_.status_json()).set("ui_from_disk", pack_.from_disk()).set("clients", ipc_.clients());
     j.set("autostart_registered", sys::autostart_enabled()).set("system_dark", sys::system_dark()).set("update", updater.state());
     j.set("maximized", hwnd_ && IsZoomed(hwnd_) != 0);
+    j.set("system_lang", i18n::code(i18n::system()));
     return j;
   }
   if (m == "app.window") {

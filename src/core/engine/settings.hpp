@@ -28,6 +28,7 @@ struct Settings {
   bool paused{false};
   std::string theme{"auto"};
   std::string density{"standard"};
+  std::string language{"auto"};  // auto 跟随系统：中文系统显示中文，其余显示英文
   Json hotkeys;
 
   Json to_json() const;

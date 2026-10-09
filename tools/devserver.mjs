@@ -57,12 +57,12 @@ async function ensureApp() {
   }
 }
 
-const mockUpdate = { state: 'current', current: '1.0.3', latest: '', notes: '', page: '', error: '', got: 0, total: 0, portable: false, repo: 'Aevorine/Deixion' };
+const mockUpdate = { state: 'current', current: '1.0.4', latest: '', notes: '', page: '', error: '', got: 0, total: 0, portable: false, repo: 'Aevorine/Deixion' };
 async function rpc(m, p) {
   if (m === 'app.info') {
     const st = (await pipeCall('status', {})).result || {};
     const sg = (await pipeCall('settings.get', {})).result || {};
-    return { ok: true, r: { version: st.version, webview: 'dev', portable: st.portable, exe: '', data_dir: st.data_dir, hotkeys: Object.entries(sg.settings?.hotkeys || {}).map(([name, chord]) => ({ name, chord, ok: true })), ui_from_disk: true, clients: 0, autostart_registered: false, system_dark: true, update: mockUpdate, maximized: false } };
+    return { ok: true, r: { version: st.version, webview: 'dev', portable: st.portable, exe: '', data_dir: st.data_dir, hotkeys: Object.entries(sg.settings?.hotkeys || {}).map(([name, chord]) => ({ name, chord, ok: true })), ui_from_disk: true, clients: 0, autostart_registered: false, system_dark: true, system_lang: /^zh/i.test(Intl.DateTimeFormat().resolvedOptions().locale) ? 'zh' : 'en', update: mockUpdate, maximized: false } };
   }
   if (m.startsWith('app.')) return { ok: true, r: {} };
   if (m === 'update.state' || m === 'update.check') return { ok: true, r: mockUpdate };

@@ -5,15 +5,16 @@ import { call } from './bridge.js';
 import { refreshActions } from './store.js';
 import { methodInfo, strategyName } from './meta.js';
 import * as fmt from './fmt.js';
+import { t } from './i18n.js';
 
 export function actionCells(a) {
   const m = methodInfo(a.method);
   const stateIcon = a.ok ? (a.confirmed ? 'ok' : 'check') : 'fail';
-  const stateTip = a.ok ? (a.confirmed ? '已确认生效' : '已执行（未能确认效果）') : `失败：${a.err || ''}`;
+  const stateTip = a.ok ? (a.confirmed ? t('已确认生效') : t('已执行（未能确认效果）')) : t('失败：{e}', { e: a.err || '' });
   const undo = a.undoable
-    ? asyncBtn({ icon: 'undo', tip: '撤销这一步', kind: 'ghost' }, async () => {
+    ? asyncBtn({ icon: 'undo', tip: t('撤销这一步'), kind: 'ghost' }, async () => {
       await call('rollback', { id: a.id });
-      toast('已撤销', 'ok', 1500);
+      toast(t('已撤销'), 'ok', 1500);
       await refreshActions();
     })
     : null;

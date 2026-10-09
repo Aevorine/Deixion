@@ -8,6 +8,7 @@ import { vlist } from '../core/vlist.js';
 import { debounce } from '../core/fmt.js';
 import { sparkline } from '../core/chart.js';
 import * as fmt from '../core/fmt.js';
+import { t } from '../core/i18n.js';
 
 const ORDER = { trace: 0, debug: 1, info: 2, warn: 3, error: 4 };
 const KIND = { debug: '', info: 'accent', warn: 'warn', error: 'danger' };
@@ -26,18 +27,18 @@ registerPage({
       rowH: 30, stick: true,
       render: (r) => [
         h('span', { style: { color: 'var(--c-text-3)', width: '7.2em', fontVariantNumeric: 'tabular-nums' } }, fmt.timeMs(r.t)),
-        h('span', { class: 'chip ' + (KIND[r.lv] || ''), style: { minWidth: '3.4em', justifyContent: 'center' } }, { debug: '调试', info: '信息', warn: '警告', error: '错误' }[r.lv] || r.lv),
+        h('span', { class: 'chip ' + (KIND[r.lv] || ''), style: { minWidth: '3.4em', justifyContent: 'center' } }, { debug: t('调试'), info: t('信息'), warn: t('警告'), error: t('错误') }[r.lv] || r.lv),
         h('span', { style: { color: 'var(--c-text-3)', width: '6em', overflow: 'hidden', textOverflow: 'ellipsis' } }, r.cat),
         h('span', { style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }, tip: r.msg.length > 90 ? r.msg : null }, r.msg),
       ],
       onRow: (r, el) => el.addEventListener('dblclick', () => copy(`${fmt.dateTime(r.t)} [${r.lv}] ${r.cat}: ${r.msg}`, call)),
     });
-    const none = empty('没有符合条件的日志', 'logs');
+    const none = empty(t('没有符合条件的日志'), 'logs');
     const count = chip('');
-    const levelSeg = seg({ value: 'info', options: [{ value: 'debug', label: '调试' }, { value: 'info', label: '信息' }, { value: 'warn', label: '警告' }, { value: 'error', label: '错误' }], onChange: (v) => { level = v; paint(); } });
-    const q = h('input', { class: 'input', placeholder: '关键字', style: { width: '100%' } });
+    const levelSeg = seg({ value: 'info', options: [{ value: 'debug', label: t('调试') }, { value: 'info', label: t('信息') }, { value: 'warn', label: t('警告') }, { value: 'error', label: t('错误') }], onChange: (v) => { level = v; paint(); } });
+    const q = h('input', { class: 'input', placeholder: t('关键字'), style: { width: '100%' } });
     q.addEventListener('input', debounce(() => { query = q.value.trim().toLowerCase(); paint(); }, 160));
-    const followSw = toggle({ value: true, tip: '跟随最新', onChange: (v) => { follow = v; if (v) list.scrollToEnd(); } });
+    const followSw = toggle({ value: true, tip: t('跟随最新'), onChange: (v) => { follow = v; if (v) list.scrollToEnd(); } });
 
     function visible() {
       const min = ORDER[level] ?? 2;
@@ -62,7 +63,7 @@ registerPage({
         if (age >= 0 && age < 30) perMin[29 - age]++;
       }
       const max = Math.max(1, ...Object.values(cnt));
-      lvBox.replaceChildren(...[['error', '错误', 'danger'], ['warn', '警告', 'warn'], ['info', '信息', 'accent'], ['debug', '调试', '']].map(([k, t, kind]) => h('div', { class: 'row' }, h('div', { class: 'k' }, chip(t, kind)), h('div', { class: 'v', style: { flex: 1 } }, h('div', { class: 'bar ' + (kind === 'danger' ? 'danger' : kind === 'warn' ? 'warn' : ''), style: { flex: 1, '--w': `${(cnt[k] / max) * 100}%` } }, h('i')), h('span', { style: { minWidth: '3em', textAlign: 'right' } }, fmt.int(cnt[k]))))));
+      lvBox.replaceChildren(...[['error', '错误', 'danger'], ['warn', '警告', 'warn'], ['info', '信息', 'accent'], ['debug', '调试', '']].map(([k, zh, kind]) => h('div', { class: 'row' }, h('div', { class: 'k' }, chip(t(zh), kind)), h('div', { class: 'v', style: { flex: 1 } }, h('div', { class: 'bar ' + (kind === 'danger' ? 'danger' : kind === 'warn' ? 'warn' : ''), style: { flex: 1, '--w': `${(cnt[k] / max) * 100}%` } }, h('i')), h('span', { style: { minWidth: '3em', textAlign: 'right' } }, fmt.int(cnt[k]))))));
       catBox.replaceChildren(...[...cats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 9).map(([c, n]) => h('div', { class: 'row' }, h('div', { class: 'k' }, c), h('div', { class: 'v' }, fmt.int(n)))));
       spark.redraw();
     }
@@ -91,12 +92,12 @@ registerPage({
       label: [count], flush: true, cls: 's9',
       acts: [h('div', { class: 'search', style: { width: '240px' } }, icon('search', 'sm'), q), levelSeg,
         h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px' } }, icon('chevD', 'sm'), followSw),
-        btn({ icon: 'broom', tip: '清空当前显示', kind: 'ghost', onClick: () => { all = []; paint(); } }),
-        btn({ icon: 'folder', tip: '打开日志目录', kind: 'ghost', onClick: () => call('app.open', { kind: 'logs' }).catch((e) => toast(e.message, 'warn')) }),
-        asyncBtn({ icon: 'copy', tip: '复制当前显示的日志', kind: 'ghost' }, async () => { await copy(visible().map((r) => `${fmt.dateTime(r.t)} [${r.lv}] ${r.cat}: ${r.msg}`).join('\n'), call); })],
+        btn({ icon: 'broom', tip: t('清空当前显示'), kind: 'ghost', onClick: () => { all = []; paint(); } }),
+        btn({ icon: 'folder', tip: t('打开日志目录'), kind: 'ghost', onClick: () => call('app.open', { kind: 'logs' }).catch((e) => toast(e.message, 'warn')) }),
+        asyncBtn({ icon: 'copy', tip: t('复制当前显示的日志'), kind: 'ghost' }, async () => { await copy(visible().map((r) => `${fmt.dateTime(r.t)} [${r.lv}] ${r.cat}: ${r.msg}`).join('\n'), call); })],
       body: [list.root, none],
     });
-    const side = h('div', { class: 's3 stack', style: { gridTemplateRows: 'auto minmax(0, 1fr) auto' } }, panel({ label: '级别', body: lvBox }), panel({ label: '来源', body: catBox }), panel({ label: '每分钟条数（近 30 分钟）', flush: true, body: cv }));
+    const side = h('div', { class: 's3 stack', style: { gridTemplateRows: 'auto minmax(0, 1fr) auto' } }, panel({ label: t('级别'), body: lvBox }), panel({ label: t('来源'), body: catBox }), panel({ label: t('每分钟条数（近 30 分钟）'), flush: true, body: cv }));
     root.append(h('div', { class: 'grid', style: { gridTemplateRows: 'minmax(0, 1fr)' } }, p, side));
     load();
     return { show() { load(); } };

@@ -1,4 +1,5 @@
 // 公式一律用 KaTeX 渲染；脚本按需加载，只有用到公式的页面才付出这笔开销。
+import { t } from './i18n.js';
 let loading;
 export function ensureKatex() {
   if (window.katex) return Promise.resolve(window.katex);
@@ -7,7 +8,7 @@ export function ensureKatex() {
       const s = document.createElement('script');
       s.src = 'vendor/katex/katex.min.js';
       s.onload = () => res(window.katex);
-      s.onerror = () => rej(new Error('KaTeX 加载失败'));
+      s.onerror = () => rej(new Error(t('KaTeX 加载失败')));
       document.head.append(s);
     });
   }

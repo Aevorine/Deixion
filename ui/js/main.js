@@ -3,14 +3,17 @@ import { h, initTips } from './core/dom.js';
 import { icon } from './core/icons.js';
 import { bus } from './core/bus.js';
 import { init, state, patchSettings, tipKey } from './core/store.js';
+import { t, setLang, getLang, resolveLang } from './core/i18n.js';
+import { localizeMeta } from './core/meta.js';
 import { getPages } from './core/registry.js';
 import * as fmt from './core/fmt.js';
 import './pages/index.js';
 
+setLang(resolveLang('auto'));  // 引擎连上之前先按浏览器语言，连上后按设置
 initTips();
 const app = document.getElementById('app');
 const stage = h('div', { class: 'stage' });
-const rail = h('nav', { class: 'rail', 'aria-label': '功能导航' });
+const rail = h('nav', { class: 'rail' });
 const status = h('div', { class: 'statusbar' });
 app.append(rail, h('div', { class: 'main' }, stage, status));
 
@@ -36,7 +39,7 @@ function go(id) {
     stage.append(root);
     v = { root, ctl: null };
     views.set(id, v);
-    try { v.ctl = def.render(root) || {}; } catch (e) { console.error(e); root.append(h('div', { class: 'empty' }, '页面加载失败：' + e.message)); }
+    try { v.ctl = def.render(root) || {}; } catch (e) { console.error(e); root.append(h('div', { class: 'empty' }, t('页面加载失败：{e}', { e: e.message }))); }
   }
   v.root.classList.add('on');
   v.ctl?.show?.();
@@ -48,17 +51,18 @@ bus.on('navigate', go);
 bus.on('ev:navigate', (d) => go(d.page));
 
 function buildRail() {
+  rail.setAttribute('aria-label', t('功能导航'));
   rail.append(h('div', { class: 'logo', tip: 'Deixion' }, h('img', { src: 'assets/appicon-64.png', alt: 'Deixion' })));
   const pages = getPages();
   const mk = (p, n) => {
-    const b = h('button', { type: 'button', class: 'nav', tip: () => (n ? `${p.tip}\nCtrl + ${n % 10}` : p.tip), onClick: () => go(p.id) }, icon(p.icon));
+    const b = h('button', { type: 'button', class: 'nav', tip: () => (n ? `${t(p.tip)}\nCtrl + ${n % 10}` : t(p.tip)), onClick: () => go(p.id) }, icon(p.icon));
     navBtns.set(p.id, b);
     return b;
   };
   pages.filter((p) => p.area === 'main').forEach((p, i) => rail.append(mk(p, i + 1)));
   rail.append(h('div', { class: 'grow' }));
-  const modeBtn = h('button', { type: 'button', class: 'nav', tip: tipKey('切换前台 / 后台模式', 'mode'), onClick: () => patchSettings({ mode: state.settings.mode === 'foreground' ? 'background' : 'foreground' }) });
-  const pauseBtn = h('button', { type: 'button', class: 'nav', tip: tipKey('暂停 / 继续接收操作', 'pause'), onClick: () => patchSettings({ paused: !state.settings.paused }) });
+  const modeBtn = h('button', { type: 'button', class: 'nav', tip: tipKey(t('切换前台 / 后台模式'), 'mode'), onClick: () => patchSettings({ mode: state.settings.mode === 'foreground' ? 'background' : 'foreground' }) });
+  const pauseBtn = h('button', { type: 'button', class: 'nav', tip: tipKey(t('暂停 / 继续接收操作'), 'pause'), onClick: () => patchSettings({ paused: !state.settings.paused }) });
   const paintQuick = () => {
     const s = state.settings;
     if (!s) return;
@@ -74,33 +78,33 @@ function buildRail() {
 
 function buildStatus() {
   const mk = (ic, tip) => { const t = h('span'); const w = h('span', { class: 'item', tip }, icon(ic, 'sm'), t); return { w, t }; };
-  const engine = mk('bolt', '引擎状态');
-  const mode = mk('eyeoff', '当前模式');
-  const rate = mk('actions', '外部调用速率');
-  const lat = mk('clock', '点击操作的中位耗时');
-  const mem = mk('memory', '进程内存');
-  const cli = mk('claude', '已连接的客户端数');
-  const ver = mk('info', '版本');
-  const upd = h('button', { type: 'button', class: 'chip warn', style: { display: 'none', cursor: 'pointer', border: 0 }, tip: '有新版本，点击查看', onClick: () => bus.emit('navigate', 'settings') });
+  const engine = mk('bolt', t('引擎状态'));
+  const mode = mk('eyeoff', t('当前模式'));
+  const rate = mk('actions', t('外部调用速率'));
+  const lat = mk('clock', t('点击操作的中位耗时'));
+  const mem = mk('memory', t('进程内存'));
+  const cli = mk('claude', t('已连接的客户端数'));
+  const ver = mk('info', t('版本'));
+  const upd = h('button', { type: 'button', class: 'chip warn', style: { display: 'none', cursor: 'pointer', border: 0 }, tip: t('有新版本，点击查看'), onClick: () => bus.emit('navigate', 'settings') });
   status.append(engine.w, mode.w, rate.w, lat.w, mem.w, cli.w, h('span', { class: 'sp' }), upd, ver.w);
   const paint = () => {
     const st = state.status, s = state.settings;
     if (!st || !s) return;
-    engine.t.textContent = s.paused ? '已暂停' : '运行中';
+    engine.t.textContent = s.paused ? t('已暂停') : t('运行中');
     engine.w.firstChild.style.color = s.paused ? 'var(--c-warn)' : 'var(--c-ok)';
-    mode.t.textContent = s.mode === 'foreground' ? '前台模式' : '后台模式';
+    mode.t.textContent = s.mode === 'foreground' ? t('前台模式') : t('后台模式');
     mode.w.replaceChildren(icon(s.mode === 'foreground' ? 'eye' : 'eyeoff', 'sm'), mode.t);
     const ext = state.series.ext.at(-1) ?? 0;
-    rate.t.textContent = `${ext.toFixed(ext < 10 ? 1 : 0)} 次/秒`;
+    rate.t.textContent = t('{n} 次/秒', { n: ext.toFixed(ext < 10 ? 1 : 0) });
     const click = state.perf?.methods?.find((m) => m.name === 'click');
     lat.t.textContent = click ? fmt.us(click.p50_us) : '—';
     mem.t.textContent = fmt.bytes(state.perf?.process?.working_set);
-    cli.t.textContent = `${state.info?.clients ?? 0} 个客户端`;
+    cli.t.textContent = t('{n} 个客户端', { n: state.info?.clients ?? 0 });
     ver.t.textContent = `v${st.version}`;
     const u = state.update;
     const has = u && (u.state === 'available' || u.state === 'ready');
     upd.style.display = has ? '' : 'none';
-    if (has) upd.textContent = `新版本 ${u.latest}`;
+    if (has) upd.textContent = t('新版本 {v}', { v: u.latest });
   };
   bus.on('status', paint);
   bus.on('settings', paint);
@@ -125,11 +129,15 @@ addEventListener('keydown', (e) => {
   try {
     await init();
   } catch (e) {
-    app.replaceChildren(h('div', { class: 'empty', style: { height: '100vh' } }, icon('alert', 'lg'), h('div', null, '无法连接引擎：' + e.message), h('button', { class: 'btn primary', onClick: () => location.reload() }, '重试')));
+    app.replaceChildren(h('div', { class: 'empty', style: { height: '100vh' } }, icon('alert', 'lg'), h('div', null, t('无法连接引擎：{e}', { e: e.message })), h('button', { class: 'btn primary', onClick: () => location.reload() }, t('重试'))));
     return;
   }
+  setLang(resolveLang(state.settings.language, state.info?.system_lang));
+  localizeMeta();
   buildRail();
   buildStatus();
+  // 换语言 = 整页重载：页面文字在渲染时写定，重载最干净；原生那边（托盘菜单、提示）已经即时生效
+  bus.on('ev:settings', (s) => { if (resolveLang(s.language, state.info?.system_lang) !== getLang()) location.reload(); });
   const want = new URLSearchParams(location.search).get('page') || recall();
   go(getPages().some((p) => p.id === want) ? want : getPages()[0].id);
 })();

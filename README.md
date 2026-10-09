@@ -230,11 +230,12 @@ deixion-cli --inproc …                   不连接正在运行的 Deixion，�
 | `paused` | 布尔（`false`） | 暂停接收操作 |
 | `theme` | `auto` / `light` / `dark`（`auto`） | 界面主题，`auto` 跟随系统 |
 | `density` | `compact` / `standard` / `relaxed`（`standard`） | 界面密度 |
+| `language` | `auto` / `zh` / `en`（`auto`） | 界面语言，`auto` 跟随 Windows 显示语言：中文系统显示中文，其余显示英文；在设置页改动后界面立即重载，托盘菜单与提示同步切换 |
 | `hotkeys` | 见下表 | 全局快捷键 |
 
 **校验（`verify`）**：开启时，动作成功后引擎会在时限内等待目标窗口的界面事件（由 WinEvent 钩子统计）。如果界面发生了变化，结果记为 `confirmed: true`；否则记为未确认。结果中的 `confirmed` 与 `reaction_us` 字段即来源于此。调用方可以据此判断动作是否真的生效。
 
-**界面风格**：汉字用宋体，西文与标点用 Times New Roman，正文小四（12 pt），标题四号（14 pt）。公式由内置的 KaTeX 渲染。主题、密度见上表；配色为低饱和的青灰蓝，亮色与暗色各一套。
+**界面风格**：汉字用宋体，西文与标点用 Times New Roman，正文小四（12 pt），标题四号（14 pt）。公式由内置的 KaTeX 渲染。主题、密度、语言见上表；界面、托盘菜单与原生提示都有中文和 English 两套文字，默认跟随系统，也可以在设置里手动指定。配色为低饱和的青灰蓝，亮色与暗色各一套。
 
 ## 托盘与快捷键
 
@@ -300,7 +301,7 @@ cmake --build build
 - `deixion-setup.exe`（安装器，输出名 `Deixion-Setup-x64.exe`）只在检测到 Node 时生成，因为安装包的打包脚本 `tools/pack-payload.mjs` 需要 Node 运行。
 - 有 Node 时，`ui/` 目录会被 `tools/pack-ui.mjs` 打包进 exe。没有 Node 时，界面不会打进 exe，需要设置环境变量 `DEIXION_UI_DIR` 指向 `ui/` 目录（仅用于开发）。
 - 上述步骤已在干净的 `build/` 目录上完整执行过（2026-10-09，零警告零错误）。
-- 端到端验证脚本在 `tools/e2e/`（只有端到端，没有单元测试）：`e2e-setup.ps1` 覆盖安装、带占用的升级、损坏安装包的回滚、卸载；`mcp-e2e.mjs` 用真实 MCP 会话驱动测试靶子并核对靶子自己写出的状态，同时检查权限边界；`mcp-stress.mjs <次数> [通道] [chord]` 反复压测文字替换与 `Ctrl+A`；`focus-e2e.ps1 [-Runs N]` 在跑 MCP 会话的同时用一个高优先级线程轮询系统前台窗口，只要测试靶子成为过前台窗口就判失败。运行前需要先完整构建，脚本会结束正在运行的 Deixion 进程。
+- 端到端验证脚本在 `tools/e2e/`（只有端到端，没有单元测试）：`e2e-setup.ps1` 覆盖安装、带占用的升级、损坏安装包的回滚、卸载；`mcp-e2e.mjs` 用真实 MCP 会话驱动测试靶子并核对靶子自己写出的状态，同时检查权限边界；`mcp-stress.mjs <次数> [通道] [chord]` 反复压测文字替换与 `Ctrl+A`；`focus-e2e.ps1 [-Runs N]` 在跑 MCP 会话的同时用一个高优先级线程轮询系统前台窗口，只要测试靶子成为过前台窗口就判失败。`i18n-e2e.mjs` 用真实的 Deixion.exe（便携模式，放在临时目录）经 WebView2 调试端口逐页读界面：英文界面十个页面、所有分段开关、设置页弹窗里不许出现汉字，中文界面保持原样，点语言按钮后整页重载并写进 `settings.json`；`node tools/i18n-check.mjs` 静态检查词典是否覆盖了代码里的每一处中文。运行前需要先完整构建，脚本会结束正在运行的 Deixion 进程。
 
 第三方组件只有两个：WebView2 SDK 与 KaTeX，许可证和核验记录见 `third_party/AUDIT.md`。
 

@@ -231,11 +231,12 @@ Settings are stored in `settings.json` in the data folder. Writes go to a tempor
 | `paused` | boolean (`false`) | Stop accepting actions |
 | `theme` | `auto` / `light` / `dark` (`auto`) | UI theme; `auto` follows the system |
 | `density` | `compact` / `standard` / `relaxed` (`standard`) | UI density |
+| `language` | `auto` / `zh` / `en` (`auto`) | UI language. `auto` follows the Windows display language: Chinese systems get Chinese, everything else gets English. Changing it in Settings reloads the window at once; the tray menu and notices switch with it |
 | `hotkeys` | see the table below | Global hotkeys |
 
 **Verification (`verify`)**: when it is on, after an action succeeds the engine waits, within a time limit, for interface events from the target window (counted by a WinEvent hook). If the interface changes in that time, the result is recorded as `confirmed: true`; otherwise it is recorded as not confirmed. The `confirmed` and `reaction_us` fields in the result come from this. Callers can use them to tell whether an action really took effect.
 
-**Look and feel**: Chinese text uses SimSun (宋体), Western text and punctuation use Times New Roman, body text is 12 pt (小四) and titles are 14 pt (四号). Formulas are rendered by the bundled KaTeX. Theme and density are listed above. The palette is a low-saturation blue-grey, with one set for light and one for dark.
+**Look and feel**: Chinese text uses SimSun (宋体), Western text and punctuation use Times New Roman, body text is 12 pt (小四) and titles are 14 pt (四号). Formulas are rendered by the bundled KaTeX. Theme, density and language are listed above; the window, the tray menu and the native notices all come in Chinese and English, defaulting to the system language and changeable by hand in Settings. The palette is a low-saturation blue-grey, with one set for light and one for dark.
 
 ## Tray and hotkeys
 
@@ -301,7 +302,7 @@ cmake --build build
 - `deixion-setup.exe` (the installer, with output name `Deixion-Setup-x64.exe`) is generated only when Node is found, because the payload packer `tools/pack-payload.mjs` runs on Node.
 - With Node present, the `ui/` folder is packed into the exe by `tools/pack-ui.mjs`. Without Node, the UI is not packed into the exe, and the environment variable `DEIXION_UI_DIR` must point at the `ui/` folder (for development only).
 - The steps above were run in full on a clean `build/` folder (2026-10-09, zero warnings and zero errors).
-- End-to-end scripts live in `tools/e2e/` (end to end only, no unit tests): `e2e-setup.ps1` covers install, upgrade over locked files, rollback on a damaged package and uninstall; `mcp-e2e.mjs` drives the test target through a real MCP session, checks the state the target itself wrote, and checks the permission boundaries; `mcp-stress.mjs <runs> [channel] [chord]` hammers text replacement and `Ctrl+A`; `focus-e2e.ps1 [-Runs N]` runs the MCP session while a high-priority thread polls the system foreground window, and fails if the test target ever becomes the foreground window. Build everything first; the scripts stop any running Deixion process.
+- End-to-end scripts live in `tools/e2e/` (end to end only, no unit tests): `e2e-setup.ps1` covers install, upgrade over locked files, rollback on a damaged package and uninstall; `mcp-e2e.mjs` drives the test target through a real MCP session, checks the state the target itself wrote, and checks the permission boundaries; `mcp-stress.mjs <runs> [channel] [chord]` hammers text replacement and `Ctrl+A`; `focus-e2e.ps1 [-Runs N]` runs the MCP session while a high-priority thread polls the system foreground window, and fails if the test target ever becomes the foreground window. `i18n-e2e.mjs` starts the real Deixion.exe (portable mode, in a temp folder) and reads every page through the WebView2 debugging port: in English no Chinese character may appear on the ten pages, in any segmented switch or in the Settings dialogs; Chinese stays as it was; clicking the language button reloads the window and writes `settings.json`. `node tools/i18n-check.mjs` statically checks that the dictionary covers every Chinese string in the code. Build everything first; the scripts stop any running Deixion process.
 
 There are only two third-party components: the WebView2 SDK and KaTeX. Their licences and verification records are in `third_party/AUDIT.md`.
 

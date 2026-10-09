@@ -5,7 +5,7 @@ const pages = [];
  * area: 'main'（上部图标栏）或 'foot'（下部图标栏）。
  */
 export function registerPage(def) {
-  if (pages.some((p) => p.id === def.id)) throw new Error('页面 id 重复：' + def.id);
+  if (pages.some((p) => p.id === def.id)) throw new Error('页面 id 重复：' + def.id); // i18n-ignore
   pages.push({ area: 'main', order: 100, ...def });
 }
 export const getPages = () => [...pages].sort((a, b) => a.order - b.order);

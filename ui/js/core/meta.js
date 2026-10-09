@@ -1,4 +1,6 @@
-// 方法与策略的显示名、图标：多个页面共用，只在这里登记一份。
+// 方法与策略的显示名、图标：多个页面共用，只在这里登记一份。表里写中文原文，取用时才翻译（语言在启动后才确定）。
+import { t } from './i18n.js';
+
 export const METHODS = {
   click: { icon: 'actions', label: '点击' },
   type: { icon: 'type', label: '输入' },
@@ -21,7 +23,7 @@ export const METHODS = {
   status: { icon: 'bolt', label: '状态' },
   perf: { icon: 'perf', label: '性能' },
 };
-export const methodInfo = (m) => METHODS[m] || { icon: 'bolt', label: m };
+export const methodInfo = (m) => { const i = METHODS[m]; return i ? { icon: i.icon, label: t(i.label) } : { icon: 'bolt', label: m }; };
 
 export const STRATEGIES = {
   uia: 'UIA 控件',
@@ -36,7 +38,7 @@ export const STRATEGIES = {
   hop: '短暂前台',
   real: '真实输入',
 };
-export const strategyName = (s) => STRATEGIES[s] || s || '—';
+export const strategyName = (s) => (STRATEGIES[s] ? t(STRATEGIES[s]) : s || '—');
 
 /** 允许的执行方法（操作页的下拉）与对应参数提示。 */
 export const ACTION_FORMS = {
@@ -52,7 +54,7 @@ export const ACTION_FORMS = {
 };
 
 /** Claude 能用的工具：指南页与接入页共用。 */
-export const TOOLS = [
+const TOOLS_SRC = [
   ['windows', '列出可操作的窗口', 'filter="记事本"'],
   ['capture', '截图（可带经纬网格、控件框、局部放大）', 'window="title:记事本", code="K7Q"'],
   ['elements', '读出窗口的全部控件与坐标', 'window, query="保存"'],
@@ -70,3 +72,9 @@ export const TOOLS = [
   ['batch', '一次发多步，省往返', 'steps=[{do:"click",…}]'],
   ['rollback', '撤销已做的操作', 'count=1'],
 ];
+
+/** 指南页与接入页读这张表；语言确定后由 localizeMeta() 原地换成当前语言。 */
+export const TOOLS = [];
+export function localizeMeta() {
+  TOOLS.splice(0, TOOLS.length, ...TOOLS_SRC.map(([n, d, a]) => [n, t(d), t(a)]));
+}

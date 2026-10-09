@@ -9,6 +9,7 @@
 #include "app/sys.hpp"
 #include "app/updater.hpp"
 #include "core/base/clock.hpp"
+#include "core/base/i18n.hpp"
 #include "core/base/log.hpp"
 #include "core/base/paths.hpp"
 #include "core/base/text.hpp"
@@ -41,6 +42,8 @@ enum Cmd : int {
 std::mutex g_log_mu;
 std::vector<Json> g_pending_logs;
 }  // namespace
+
+i18n::Lang App::ui_lang() { return i18n::resolve(eng::SettingsStore::get().snapshot().language); }
 
 App& App::get() {
   static App a;
@@ -178,7 +181,10 @@ void App::show_window() {
   if (!hwnd_) return;
   if (!wv_ok_) {
     if (wv_error_.empty()) return;  // 还在创建中
-    if (MessageBoxW(hwnd_, L"界面需要微软 WebView2 运行时。\n是否打开下载页面？\n\n（没有界面时，托盘菜单、快捷键和 Claude Code 调用仍可使用。）", L"Deixion", MB_YESNO | MB_ICONINFORMATION) == IDYES)
+    if (MessageBoxW(hwnd_,
+                    i18n::pick(ui_lang(), L"界面需要微软 WebView2 运行时。\n是否打开下载页面？\n\n（没有界面时，托盘菜单、快捷键和 Claude Code 调用仍可使用。）",
+                               L"The window needs the Microsoft WebView2 runtime.\nOpen the download page?\n\n(Without it, the tray menu, hotkeys and Claude Code calls keep working.)"),
+                    L"Deixion", MB_YESNO | MB_ICONINFORMATION) == IDYES)
       sys::open_url("https://go.microsoft.com/fwlink/p/?LinkId=2124703");
     return;
   }
@@ -278,7 +284,8 @@ void App::refresh_tray(const char* balloon) {
   nid.uID = 1;
   nid.uFlags = NIF_TIP | NIF_SHOWTIP;
   std::wstring tip = L"Deixion · ";
-  tip += st.paused ? L"已暂停" : (st.foreground() ? L"前台模式" : L"后台模式");
+  const i18n::Lang lg = ui_lang();
+  tip += st.paused ? i18n::pick(lg, L"已暂停", L"Paused") : (st.foreground() ? i18n::pick(lg, L"前台模式", L"Foreground mode") : i18n::pick(lg, L"后台模式", L"Background mode"));
   wcsncpy_s(nid.szTip, tip.c_str(), _TRUNCATE);
   if (balloon) {
     nid.uFlags |= NIF_INFO | NIF_REALTIME;
@@ -302,24 +309,26 @@ void App::tray_menu(POINT at) {
   };
   auto sep = [&] { AppendMenuW(m, MF_SEPARATOR, 0, nullptr); };
   const bool visible = IsWindowVisible(hwnd_) && !IsIconic(hwnd_);
-  add(ID_SHOW, visible ? L"最小化窗口" : L"显示窗口", false, true);
+  const i18n::Lang lg = ui_lang();
+  auto T = [lg](const wchar_t* zh, const wchar_t* en) { return i18n::pick(lg, zh, en); };
+  add(ID_SHOW, visible ? T(L"最小化窗口", L"Minimize window") : T(L"显示窗口", L"Show window"), false, true);
   sep();
-  add(ID_MODE_BG, L"后台模式（不打扰你）", !st.foreground());
-  add(ID_MODE_FG, L"前台模式（显示操作过程）", st.foreground());
-  add(ID_HOP, L"允许短暂切前台兜底", st.allow_hop);
-  add(ID_TRACE, L"前台操作显示轨迹", st.overlay);
+  add(ID_MODE_BG, T(L"后台模式（不打扰你）", L"Background mode (won't disturb you)"), !st.foreground());
+  add(ID_MODE_FG, T(L"前台模式（显示操作过程）", L"Foreground mode (show the actions)"), st.foreground());
+  add(ID_HOP, T(L"允许短暂切前台兜底", L"Allow a brief foreground fallback"), st.allow_hop);
+  add(ID_TRACE, T(L"前台操作显示轨迹", L"Show the trail in foreground mode"), st.overlay);
   sep();
-  add(ID_PAUSE, st.paused ? L"继续接收操作" : L"暂停接收操作");
-  add(ID_UNDO, L"撤销上一步操作");
-  add(ID_SHOT, L"截图（含经纬网格）到剪贴板");
-  add(ID_STOP, L"紧急停止当前批处理");
+  add(ID_PAUSE, st.paused ? T(L"继续接收操作", L"Resume accepting actions") : T(L"暂停接收操作", L"Pause accepting actions"));
+  add(ID_UNDO, T(L"撤销上一步操作", L"Undo the last action"));
+  add(ID_SHOT, T(L"截图（含经纬网格）到剪贴板", L"Screenshot with Meridian grid to clipboard"));
+  add(ID_STOP, T(L"紧急停止当前批处理", L"Emergency stop the current batch"));
   sep();
-  add(ID_CLAUDE, L"接入 Claude Code…");
-  add(ID_UPDATE, L"检查更新");
-  add(ID_AUTOSTART, L"开机自启", st.autostart);
-  add(ID_DATA, L"打开数据目录");
+  add(ID_CLAUDE, T(L"接入 Claude Code…", L"Connect Claude Code…"));
+  add(ID_UPDATE, T(L"检查更新", L"Check for updates"));
+  add(ID_AUTOSTART, T(L"开机自启", L"Start at sign-in"), st.autostart);
+  add(ID_DATA, T(L"打开数据目录", L"Open data folder"));
   sep();
-  add(ID_QUIT, L"退出 Deixion");
+  add(ID_QUIT, T(L"退出 Deixion", L"Quit Deixion"));
   SetForegroundWindow(hwnd_);
   const int cmd = TrackPopupMenuEx(m, TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_BOTTOMALIGN | TPM_LEFTALIGN, at.x, at.y, hwnd_, nullptr);
   DestroyMenu(m);
@@ -362,20 +371,25 @@ void App::cmd_toggle_mode() {
   auto& store = eng::SettingsStore::get();
   const bool fg = store.snapshot().foreground();
   (void)store.update(Json::object().set("mode", fg ? "background" : "foreground"));
-  toast(fg ? "已切换到后台模式" : "已切换到前台模式", "info", !IsWindowVisible(hwnd_) || IsIconic(hwnd_));
+  const i18n::Lang lg = ui_lang();
+  toast(fg ? i18n::pick(lg, "已切换到后台模式", "Switched to background mode") : i18n::pick(lg, "已切换到前台模式", "Switched to foreground mode"), "info",
+        !IsWindowVisible(hwnd_) || IsIconic(hwnd_));
 }
 
 void App::cmd_toggle_pause() {
   auto& store = eng::SettingsStore::get();
   const bool p = store.snapshot().paused;
   (void)store.update(Json::object().set("paused", !p));
-  toast(p ? "已继续接收操作" : "已暂停接收操作", p ? "info" : "warn", !IsWindowVisible(hwnd_) || IsIconic(hwnd_));
+  const i18n::Lang lg = ui_lang();
+  toast(p ? i18n::pick(lg, "已继续接收操作", "Accepting actions again") : i18n::pick(lg, "已暂停接收操作", "Paused: not accepting actions"), p ? "info" : "warn",
+        !IsWindowVisible(hwnd_) || IsIconic(hwnd_));
 }
 
 void App::cmd_undo() {
   run_bg([this] {
     auto r = eng::Engine::get().call("rollback", Json::object().set("count", 1));
-    toast(r ? "已撤销上一步" : "无法撤销：" + r.error().msg, r ? "info" : "warn", true);
+    const i18n::Lang lg = ui_lang();
+    toast(r ? std::string(i18n::pick(lg, "已撤销上一步", "Last action undone")) : std::string(i18n::pick(lg, "无法撤销：", "Cannot undo: ")) + r.error().msg, r ? "info" : "warn", true);
   });
 }
 
@@ -383,7 +397,7 @@ void App::cmd_shot() {
   run_bg([this] {
     auto s = cap::shoot_screen(win::virtual_screen());
     if (!s) {
-      toast("截图失败：" + s.error().msg, "warn", true);
+      toast(std::string(i18n::pick(ui_lang(), "截图失败：", "Screenshot failed: ")) + s.error().msg, "warn", true);
       return;
     }
     double f = 1;
@@ -392,14 +406,15 @@ void App::cmd_shot() {
     cap::draw_grid(*im, cap::GridSpec{});
     post_ui([this, a = std::shared_ptr<cap::Image>(small ? std::move(small) : std::move(s->img))] {
       auto r = sys::copy_image(hwnd_, *a);
-      toast(r ? "截图已复制到剪贴板" : "复制失败", r ? "info" : "warn", true);
+      const i18n::Lang lg = ui_lang();
+      toast(r ? i18n::pick(lg, "截图已复制到剪贴板", "Screenshot copied to the clipboard") : i18n::pick(lg, "复制失败", "Copy failed"), r ? "info" : "warn", true);
     });
   });
 }
 
 void App::cmd_stop() {
   eng::Engine::get().request_stop();
-  toast("已发出紧急停止", "warn", true);
+  toast(i18n::pick(ui_lang(), "已发出紧急停止", "Emergency stop sent"), "warn", true);
 }
 
 // —— 窗口过程 ——
@@ -517,7 +532,7 @@ int App::run(HINSTANCE hi, bool start_hidden) {
   msg_quit_ = RegisterWindowMessageW(L"Deixion.Quit");
 
   if (auto r = eng::Engine::get().start(); !r) {
-    MessageBoxW(nullptr, text::widen("引擎启动失败：" + r.error().msg).c_str(), L"Deixion", MB_ICONERROR);
+    MessageBoxW(nullptr, text::widen(std::string(i18n::pick(ui_lang(), "引擎启动失败：", "The engine failed to start: ")) + r.error().msg).c_str(), L"Deixion", MB_ICONERROR);
     return 1;
   }
   const unsigned n = 4;

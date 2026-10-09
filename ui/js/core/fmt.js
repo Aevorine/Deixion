@@ -1,4 +1,5 @@
 // 数字、时间、字节的统一格式化。
+import { t } from './i18n.js';
 export const pad2 = (n) => String(n).padStart(2, '0');
 
 export function time(ms) {
@@ -36,7 +37,7 @@ export function bytes(n) {
 export function dur(s) {
   s = Math.max(0, Math.floor(s));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
-  return h ? `${h} 时 ${m} 分` : m ? `${m} 分 ${s % 60} 秒` : `${s} 秒`;
+  return h ? t('{h} 时 {m} 分', { h, m }) : m ? t('{m} 分 {s} 秒', { m, s: s % 60 }) : t('{s} 秒', { s });
 }
 export const int = (n) => (n == null ? '—' : Number(n).toLocaleString('en-US'));
 export const pct = (v, d = 1) => (v == null ? '—' : `${(v * 100).toFixed(d)}%`);

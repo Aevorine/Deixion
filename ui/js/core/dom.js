@@ -1,5 +1,6 @@
 // DOM 助手：h() 建节点、悬停提示、消息条、对话框、常用控件。所有页面只用这里的构件，保证风格统一。
 import { icon } from './icons.js';
+import { t } from './i18n.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const tipFns = new WeakMap();
@@ -193,8 +194,8 @@ export function dialog({ title, body, actions }) {
     scrim.querySelector('.btn.primary, .btn')?.focus();
   });
 }
-export const confirmBox = (title, body, danger = false, ok = '确定') => dialog({ title, body, actions: [{ label: '取消', value: false }, { label: ok, kind: danger ? 'danger' : 'primary', value: true }] }).then((v) => !!v);
+export const confirmBox = (title, body, danger = false, ok = t('确定')) => dialog({ title, body, actions: [{ label: t('取消'), value: false }, { label: ok, kind: danger ? 'danger' : 'primary', value: true }] }).then((v) => !!v);
 
 export async function copy(text, call) {
-  try { await call('app.copy', { text }); toast('已复制', 'ok', 1400); } catch { try { await navigator.clipboard.writeText(text); toast('已复制', 'ok', 1400); } catch { toast('复制失败', 'warn'); } }
+  try { await call('app.copy', { text }); toast(t('已复制'), 'ok', 1400); } catch { try { await navigator.clipboard.writeText(text); toast(t('已复制'), 'ok', 1400); } catch { toast(t('复制失败'), 'warn'); } }
 }

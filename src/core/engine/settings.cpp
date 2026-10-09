@@ -29,7 +29,7 @@ Json Settings::to_json() const {
   j.set("mode", mode).set("allow_hop", allow_hop).set("allow_shell_launch", allow_shell_launch).set("launch_strict", launch_strict).set("speed", speed).set("overlay", overlay).set("verify", verify);
   j.set("jpeg_quality", jpeg_quality).set("max_image_dim", max_image_dim).set("grid_default", grid_default).set("log_level", log_level);
   j.set("autostart", autostart).set("check_updates", check_updates).set("close_to_tray", close_to_tray).set("paused", paused);
-  j.set("theme", theme).set("density", density).set("hotkeys", hotkeys);
+  j.set("theme", theme).set("density", density).set("language", language).set("hotkeys", hotkeys);
   Json allow = Json::array();
   for (const auto& e : launch_allow) allow.push(e);
   j.set("launch_allow", std::move(allow));
@@ -59,6 +59,7 @@ Settings Settings::from_json(const Json& j) {
   if (j.has("paused")) s.paused = j["paused"].as_bool(false);
   if (one_of(j["theme"].as_str(), {"auto", "light", "dark"})) s.theme = j["theme"].as_str();
   if (one_of(j["density"].as_str(), {"compact", "standard", "relaxed"})) s.density = j["density"].as_str();
+  if (one_of(j["language"].as_str(), {"auto", "zh", "en"})) s.language = j["language"].as_str();
   if (j["hotkeys"].is_obj())
     for (const auto& kv : j["hotkeys"].obj())
       if (kv.second.is_str() && !kv.second.as_str().empty()) s.hotkeys.set(kv.first, kv.second.as_str());

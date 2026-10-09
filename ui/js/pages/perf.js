@@ -8,15 +8,16 @@ import { registerPage } from '../core/registry.js';
 import { lineChart } from '../core/chart.js';
 import { methodInfo } from '../core/meta.js';
 import * as fmt from '../core/fmt.js';
+import { t } from '../core/i18n.js';
 
 registerPage({
   id: 'perf', icon: 'perf', tip: '性能', order: 70,
   render(root) {
     const kpi = (label, ic) => { const n = h('div', { class: 'n' }); return { n, el: h('div', { class: 'kpi' }, h('div', { class: 't' }, icon(ic, 'sm'), label), n) }; };
-    const kCpu = kpi('CPU 占用', 'cpu');
-    const kMem = kpi('内存', 'memory');
-    const kRate = kpi('外部调用', 'bolt');
-    const kUp = kpi('已运行', 'clock');
+    const kCpu = kpi(t('CPU 占用'), 'cpu');
+    const kMem = kpi(t('内存'), 'memory');
+    const kRate = kpi(t('外部调用'), 'bolt');
+    const kUp = kpi(t('已运行'), 'clock');
 
     const cv1 = h('canvas', { class: 'chart' });
     const cv2 = h('canvas', { class: 'chart' });
@@ -24,19 +25,19 @@ registerPage({
     const c2 = lineChart(cv2, () => [{ values: state.series.mem, color: '--c-ok', fill: true, len: 150 }], { yFmt: (v) => `${v.toFixed(0)}M` });
 
     const tbody = h('tbody');
-    const table = h('table', { class: 'tbl' }, h('thead', null, h('tr', null, ['方法', '次数', '中位 P50', 'P90', 'P99', '最小', '最大', '平均', '分布'].map((t, i) => h('th', { class: i && i < 8 ? 'num' : '' }, t)))), tbody);
-    const none = empty('调用后这里会出现各方法的耗时', 'perf');
+    const table = h('table', { class: 'tbl' }, h('thead', null, h('tr', null, [t('方法'), t('次数'), t('中位 P50'), 'P90', 'P99', t('最小'), t('最大'), t('平均'), t('分布')].map((c, i) => h('th', { class: i && i < 8 ? 'num' : '' }, c)))), tbody);
+    const none = empty(t('调用后这里会出现各方法的耗时'), 'perf');
     const cpuChips = h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } });
 
     function paint() {
       const st = state.status, pf = state.perf;
       if (!st || !pf) return;
       const cpu = state.series.cpu.at(-1) ?? 0, ext = state.series.ext.at(-1) ?? 0;
-      kCpu.n.replaceChildren(`${cpu.toFixed(cpu < 10 ? 2 : 1)}%`, h('small', null, `${st.cpu?.threads ?? '?'} 线程`));
-      kMem.n.replaceChildren(fmt.bytes(pf.process.working_set), h('small', null, `私有 ${fmt.bytes(pf.process.private)}`));
-      kRate.n.replaceChildren(ext.toFixed(ext < 10 ? 1 : 0), h('small', null, '次/秒'));
+      kCpu.n.replaceChildren(`${cpu.toFixed(cpu < 10 ? 2 : 1)}%`, h('small', null, t('{n} 线程', { n: st.cpu?.threads ?? '?' })));
+      kMem.n.replaceChildren(fmt.bytes(pf.process.working_set), h('small', null, t('私有 {size}', { size: fmt.bytes(pf.process.private) })));
+      kRate.n.replaceChildren(ext.toFixed(ext < 10 ? 1 : 0), h('small', null, t('次/秒')));
       kUp.n.replaceChildren(fmt.dur(pf.uptime_s));
-      cpuChips.replaceChildren(chip(st.cpu?.name || 'CPU'), chip('BMI2', st.cpu?.bmi2 ? 'ok' : ''), chip('AVX2', st.cpu?.avx2 ? 'ok' : ''), chip('SSE4.2', st.cpu?.sse42 ? 'ok' : ''), chip(st.activity_hook ? '活动钩子 开' : '活动钩子 休眠', st.activity_hook ? 'accent' : ''));
+      cpuChips.replaceChildren(chip(st.cpu?.name || 'CPU'), chip('BMI2', st.cpu?.bmi2 ? 'ok' : ''), chip('AVX2', st.cpu?.avx2 ? 'ok' : ''), chip('SSE4.2', st.cpu?.sse42 ? 'ok' : ''), chip(st.activity_hook ? t('活动钩子 开') : t('活动钩子 休眠'), st.activity_hook ? 'accent' : ''));
       const ms = [...(pf.methods || [])].sort((a, b) => b.count - a.count);
       none.style.display = ms.length ? 'none' : '';
       table.style.display = ms.length ? '' : 'none';
@@ -53,32 +54,32 @@ registerPage({
     }
     bus.on('status', paint);
 
-    const benchOut = h('div', { class: 'rows' }, empty('点“一键自测”测量端到端耗时', 'flask'));
+    const benchOut = h('div', { class: 'rows' }, empty(t('点“一键自测”测量端到端耗时'), 'flask'));
     const SUITE = [
-      ['窗口列表', 'windows', {}, 30],
-      ['整屏截图', 'capture', { window: 'screen', grid: true }, 12],
-      ['引擎状态', 'status', {}, 60],
-      ['坐标换算', 'geo', { window: 'screen', at: '0.5,0.5' }, 60],
+      [t('窗口列表'), 'windows', {}, 30],
+      [t('整屏截图'), 'capture', { window: 'screen', grid: true }, 12],
+      [t('引擎状态'), 'status', {}, 60],
+      [t('坐标换算'), 'geo', { window: 'screen', at: '0.5,0.5' }, 60],
     ];
-    const bench = asyncBtn({ icon: 'flask', label: '一键自测', kind: 'primary' }, async () => {
+    const bench = asyncBtn({ icon: 'flask', label: t('一键自测'), kind: 'primary' }, async () => {
       benchOut.replaceChildren();
       for (const [name, m, p, n] of SUITE) {
-        const t = [];
-        for (let i = 0; i < n; i++) { const t0 = performance.now(); await call(m, p); t.push(performance.now() - t0); }
-        t.sort((a, b) => a - b);
-        const q = (f) => t[Math.min(t.length - 1, Math.floor(f * t.length))];
-        benchOut.append(h('div', { class: 'row' }, h('div', { class: 'k' }, `${name} × ${n}`), h('div', { class: 'v' }, chip(`P50 ${q(0.5).toFixed(2)} ms`, 'accent'), chip(`P99 ${q(0.99).toFixed(2)} ms`), chip(`最小 ${t[0].toFixed(2)} ms`))));
+        const ts = [];
+        for (let i = 0; i < n; i++) { const t0 = performance.now(); await call(m, p); ts.push(performance.now() - t0); }
+        ts.sort((a, b) => a - b);
+        const q = (f) => ts[Math.min(ts.length - 1, Math.floor(f * ts.length))];
+        benchOut.append(h('div', { class: 'row' }, h('div', { class: 'k' }, `${name} × ${n}`), h('div', { class: 'v' }, chip(`P50 ${q(0.5).toFixed(2)} ms`, 'accent'), chip(`P99 ${q(0.99).toFixed(2)} ms`), chip(t('最小 {v} ms', { v: ts[0].toFixed(2) })))));
       }
-      toast('自测完成（含网页与原生之间的往返）', 'ok');
+      toast(t('自测完成（含网页与原生之间的往返）'), 'ok');
     });
 
     const top = h('div', { class: 's12', style: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 'var(--sp-3)' } }, kCpu.el, kMem.el, kRate.el, kUp.el);
     root.append(h('div', { class: 'grid', style: { gridTemplateRows: 'auto minmax(0, 0.9fr) minmax(0, 1.1fr)' } },
       top,
-      panel({ cls: 's6', label: 'CPU（蓝）与外部调用速率（黄）', flush: true, body: cv1 }),
-      panel({ cls: 's6', label: '内存（MB）', flush: true, body: cv2 }),
-      panel({ cls: 's8', label: '各方法耗时', flush: true, body: [h('div', { style: { overflow: 'auto', height: '100%' } }, table), none], acts: [cpuChips] }),
-      panel({ cls: 's4', label: '自测', body: benchOut, acts: [bench] })));
+      panel({ cls: 's6', label: t('CPU（蓝）与外部调用速率（黄）'), flush: true, body: cv1 }),
+      panel({ cls: 's6', label: t('内存（MB）'), flush: true, body: cv2 }),
+      panel({ cls: 's8', label: t('各方法耗时'), flush: true, body: [h('div', { style: { overflow: 'auto', height: '100%' } }, table), none], acts: [cpuChips] }),
+      panel({ cls: 's4', label: t('自测'), body: benchOut, acts: [bench] })));
     paint();
     return { show: paint };
   },

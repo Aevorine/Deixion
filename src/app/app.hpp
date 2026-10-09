@@ -10,6 +10,7 @@
 #include "app/hotkeys.hpp"
 #include "app/ui_pack.hpp"
 #include "app/wv.hpp"
+#include "core/base/i18n.hpp"
 #include "core/engine/engine.hpp"
 #include "core/ipc/pipe.hpp"
 
@@ -27,6 +28,8 @@ class App {
   void post_ui(std::function<void()> fn);
   void run_bg(std::function<void()> fn);
   void push_event(const std::string& ev, const Json& data);
+  // 当前界面语言：设置里的 language，auto 时跟随系统。托盘菜单、提示、原生对话框都用它。
+  static i18n::Lang ui_lang();
 
  private:
   App() = default;

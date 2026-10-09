@@ -7,6 +7,7 @@ import { vlist } from '../core/vlist.js';
 import { shotView } from '../core/shotview.js';
 import { debounce } from '../core/fmt.js';
 import * as fmt from '../core/fmt.js';
+import { t } from '../core/i18n.js';
 
 const ROLES = ['', 'Button', 'Edit', 'CheckBox', 'RadioButton', 'ComboBox', 'ListItem', 'MenuItem', 'TabItem', 'TreeItem', 'Hyperlink', 'Text', 'Document'];
 
@@ -19,12 +20,12 @@ registerPage({
     let loading = false;
     let picked = false;
 
-    const winSel = select({ options: [{ value: '', label: '选择窗口…' }], value: '', onChange: (v) => { target = v; reload(true); } });
+    const winSel = select({ options: [{ value: '', label: t('选择窗口…') }], value: '', onChange: (v) => { target = v; reload(true); } });
     winSel.style.width = '240px';
-    const q = h('input', { class: 'input', placeholder: '模糊搜索名称 / 标识', style: { width: '100%' } });
+    const q = h('input', { class: 'input', placeholder: t('模糊搜索名称 / 标识'), style: { width: '100%' } });
     const search = h('div', { class: 'search', style: { width: '230px' } }, icon('search', 'sm'), q);
-    const roleSel = select({ options: ROLES.map((r) => ({ value: r, label: r || '全部类型' })), value: '', onChange: () => reload(false) });
-    const inter = toggle({ value: true, tip: '只显示可交互 / 有名称的控件', onChange: () => reload(false) });
+    const roleSel = select({ options: ROLES.map((r) => ({ value: r, label: r || t('全部类型') })), value: '', onChange: () => reload(false) });
+    const inter = toggle({ value: true, tip: t('只显示可交互 / 有名称的控件'), onChange: () => reload(false) });
     const count = chip('0');
     const view = shotView();
     const overlay = view.layer;
@@ -35,7 +36,7 @@ registerPage({
       render: (n) => [
         h('span', { style: { width: '3.2em', color: 'var(--c-text-3)' } }, n.id),
         h('span', { class: 'chip accent', style: { minWidth: '5.6em', justifyContent: 'center' } }, n.role),
-        h('span', { style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' } }, n.name || h('span', { style: { color: 'var(--c-text-3)' } }, n.aid || '（无名称）')),
+        h('span', { style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' } }, n.name || h('span', { style: { color: 'var(--c-text-3)' } }, n.aid || t('（无名称）'))),
         h('span', { style: { color: 'var(--c-text-3)', width: '9.5em', textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }, n.at),
         ...(n.state || []).map((s) => chip(s, s === 'disabled' ? 'warn' : '')),
       ],
@@ -61,28 +62,28 @@ registerPage({
       list.set(nodes);
       detail.replaceChildren();
       actRow.replaceChildren();
-      if (!n) { detail.append(empty('选择一个控件', 'elements')); return; }
+      if (!n) { detail.append(empty(t('选择一个控件'), 'elements')); return; }
       const line = (k, v) => h('div', { class: 'row' }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, v));
       detail.append(
-        line('编号', n.id), line('类型', chip(n.role, 'accent')), line('名称', n.name || '—'), line('标识', n.aid || '—'),
-        line('中心 λ,φ', n.at), line('范围', n.box ? n.box.map((v) => v.toFixed(3)).join(' · ') : '—'),
-        line('Meridian 码', h('span', { style: { fontWeight: 'bold', letterSpacing: '0.08em' } }, n.code)),
-        line('可执行', (n.can || []).length ? h('span', { style: { display: 'inline-flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' } }, n.can.map((c) => chip(c))) : '—'),
-        line('深度', n.depth ?? '—'),
+        line(t('编号'), n.id), line(t('类型'), chip(n.role, 'accent')), line(t('名称'), n.name || '—'), line(t('标识'), n.aid || '—'),
+        line(t('中心 λ,φ'), n.at), line(t('范围'), n.box ? n.box.map((v) => v.toFixed(3)).join(' · ') : '—'),
+        line(t('Meridian 码'), h('span', { style: { fontWeight: 'bold', letterSpacing: '0.08em' } }, n.code)),
+        line(t('可执行'), (n.can || []).length ? h('span', { style: { display: 'inline-flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' } }, n.can.map((c) => chip(c))) : '—'),
+        line(t('深度'), n.depth ?? '—'),
       );
       const canValue = (n.can || []).includes('value');
-      const val = h('input', { class: 'input', placeholder: '要写入的值', style: { width: '170px', display: canValue ? '' : 'none' } });
+      const val = h('input', { class: 'input', placeholder: t('要写入的值'), style: { width: '170px', display: canValue ? '' : 'none' } });
       actRow.append(
-        asyncBtn({ icon: 'actions', label: '点击', kind: 'primary', disabled: (n.state || []).includes('disabled') }, async () => {
+        asyncBtn({ icon: 'actions', label: t('点击'), kind: 'primary', disabled: (n.state || []).includes('disabled') }, async () => {
           const r = await call('click', { window: target, element: n.id });
-          toast(`已点击 · ${r.strategy}${r.confirmed ? ' · 已确认' : ''}`, 'ok');
+          toast(t('已点击') + ' · ' + r.strategy + (r.confirmed ? ' · ' + t('已确认') : ''), 'ok');
         }),
         val,
-        canValue ? asyncBtn({ icon: 'type', label: '赋值' }, async () => {
+        canValue ? asyncBtn({ icon: 'type', label: t('赋值') }, async () => {
           const r = await call('set_value', { window: target, element: n.id, value: val.value });
-          toast(`已赋值 · ${r.strategy}`, 'ok');
+          toast(t('已赋值') + ' · ' + r.strategy, 'ok');
         }) : null,
-        btn({ icon: 'copy', tip: '复制选择器（给 Claude 用）', kind: 'ghost', onClick: () => copy(JSON.stringify({ window: target, element: n.id, role: n.role, name: n.name }), call) }),
+        btn({ icon: 'copy', tip: t('复制选择器（给 Claude 用）'), kind: 'ghost', onClick: () => copy(JSON.stringify({ window: target, element: n.id, role: n.role, name: n.name }), call) }),
       );
     }
 
@@ -90,7 +91,7 @@ registerPage({
       try {
         const r = await call('windows', {});
         const cur = winSel.value;
-        winSel.replaceChildren(h('option', { value: '' }, '选择窗口…'), ...(r.windows || []).filter((w) => !w.minimized && w.client.w > 0).map((w) => h('option', { value: `hwnd:${w.hwnd}` }, `${w.exe} · ${(w.title || w.class).slice(0, 38)}`)));
+        winSel.replaceChildren(h('option', { value: '' }, t('选择窗口…')), ...(r.windows || []).filter((w) => !w.minimized && w.client.w > 0).map((w) => h('option', { value: `hwnd:${w.hwnd}` }, `${w.exe} · ${(w.title || w.class).slice(0, 38)}`)));
         winSel.value = [...winSel.options].some((o) => o.value === cur) ? cur : '';
         if (!winSel.value && !picked) {
           picked = true;
@@ -116,7 +117,7 @@ registerPage({
         select_(sel);
       } catch (e) { toast(e.message, 'danger'); } finally { loading = false; refresh.classList.remove('busy'); }
     }
-    const refresh = btn({ icon: 'refresh', tip: '重新读取元素与截图', kind: 'ghost', onClick: () => { loadWindows(); reload(true); } });
+    const refresh = btn({ icon: 'refresh', tip: t('重新读取元素与截图'), kind: 'ghost', onClick: () => { loadWindows(); reload(true); } });
     q.addEventListener('input', debounce(() => reload(false), 220));
 
     const left = panel({
@@ -126,8 +127,8 @@ registerPage({
       body: list.root,
     });
     const right = h('div', { class: 's5', style: { display: 'grid', gridTemplateRows: 'minmax(0, 1.25fr) minmax(0, 1fr)', gap: 'var(--sp-3)', minHeight: 0 } },
-      panel({ label: '窗口预览', flush: true, body: view.root }),
-      panel({ label: '控件详情', body: [detail], acts: [actRow] }));
+      panel({ label: t('窗口预览'), flush: true, body: view.root }),
+      panel({ label: t('控件详情'), body: [detail], acts: [actRow] }));
     root.append(h('div', { class: 'grid', style: { gridTemplateRows: 'minmax(0, 1fr)' } }, left, right));
     select_(null);
     loadWindows();

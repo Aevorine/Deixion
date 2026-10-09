@@ -1,0 +1,21 @@
+// 英文词条：键 = 代码里的中文原文，值 = 英文。
+export default {
+  '经验': 'Experience',
+  '通道记录': 'Channel records',
+  '已学习的应用': 'Apps learned',
+  '累计观测': 'Observations',
+  '全部应用': 'All apps',
+  'Claude 操作过的应用会出现在这里': 'Apps operated by Claude will appear here',
+  '还没有可展示的经验': 'No experience to show yet',
+  '平均收益 {r} · UCB {u} · 累计 {n} 次': 'Mean reward {r} · UCB {u} · {n} total runs',
+  '应用': 'Apps',
+  '选择规则': 'Selection rule',
+  '策略擂台': 'Strategy arena',
+  '刷新': 'Refresh',
+  '复制全部经验（JSON）': 'Copy all experience (JSON)',
+  '重置经验': 'Reset experience',
+  '所有已学到的通道偏好都会清空，之后从头学习。确定吗？': 'All learned channel preferences will be cleared and learning starts over. Continue?',
+  '重置': 'Reset',
+  '已重置': 'Reset done',
+  '策略地形（横轴耗时 · 纵轴成功率 · 圆越大样本越多）': 'Strategy terrain (x: latency · y: success rate · size: samples)',
+};

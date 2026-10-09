@@ -1,5 +1,6 @@
 // 网页 ⇄ 原生桥。原生里走 WebView2 消息，开发时（普通浏览器）走 /rpc。
 import { bus } from './bus.js';
+import { t } from './i18n.js';
 
 const wv = window.chrome && window.chrome.webview;
 export const native = !!wv;
@@ -17,7 +18,7 @@ if (wv) {
     pending.delete(m.id);
     clearTimeout(p.timer);
     if (m.ok) p.res(m.r);
-    else p.rej(Object.assign(new Error(m.e?.msg || '调用失败'), { code: m.e?.code || 'internal' }));
+    else p.rej(Object.assign(new Error(m.e?.msg || t('调用失败')), { code: m.e?.code || 'internal' }));
   });
 }
 
@@ -27,7 +28,7 @@ export function call(method, params = {}, timeout = 60000) {
   if (wv) {
     return new Promise((res, rej) => {
       const id = ++seq;
-      const timer = setTimeout(() => { pending.delete(id); rej(Object.assign(new Error('调用超时'), { code: 'timeout' })); }, timeout);
+      const timer = setTimeout(() => { pending.delete(id); rej(Object.assign(new Error(t('调用超时')), { code: 'timeout' })); }, timeout);
       pending.set(id, { res, rej, timer });
       wv.postMessage({ id, m: method, p: params });
     });
@@ -36,6 +37,6 @@ export function call(method, params = {}, timeout = 60000) {
     .then((r) => r.json())
     .then((m) => {
       if (m.ok) return m.r;
-      throw Object.assign(new Error(m.e?.msg || '调用失败'), { code: m.e?.code || 'internal' });
+      throw Object.assign(new Error(m.e?.msg || t('调用失败')), { code: m.e?.code || 'internal' });
     });
 }

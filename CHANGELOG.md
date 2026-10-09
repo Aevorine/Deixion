@@ -7,6 +7,7 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 ### Added
 - Wiki sources in `docs/wiki/` and `tools/sync-wiki.mjs` to publish them to the GitHub Wiki.
 - Open issues for the documented known limits (#4–#8).
+- `brand/social-preview.png`, the 1280×640 repository card (Settings → Social preview).
 - GitHub Package `@aevorine/deixion` (npm launcher, `packages/npm`): `install` downloads the release and verifies its SHA-256 against `SHA256SUMS.txt` before running it; `mcp` / `cli` forward to the installed `deixion-cli.exe`. Published by `.github/workflows/package.yml` when a release is published.
 
 ### Changed

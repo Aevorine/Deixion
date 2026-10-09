@@ -27,3 +27,6 @@ compile_commands.json
 .claude/SPEC.md
 .claude/history/
 CLAUDE.local.md
+
+# 浏览器自动化的临时目录
+.playwright-mcp/

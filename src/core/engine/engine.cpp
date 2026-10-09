@@ -278,6 +278,19 @@ Res<void> Engine::uia_activate(const uia::Node& n, store::Inverse* inv, HWND h) 
   uia::Service& s = uia::Service::get();
   if (!(n.flags & uia::F_ENABLED)) return fail(E_DENIED, "element is disabled");
   const bool toggle_first = (n.patterns & uia::P_TOGGLE) && (n.ctype == 50002 || n.ctype == 50013 || !(n.patterns & uia::P_INVOKE));
+  // 经典 Win32 按钮：UIA 的 Invoke / Toggle 在目标进程里会自己抢前台，前台锁拦不住；
+  // 直接发 BM_CLICK 与系统自带的 UIA 代理做的事等价，而且前台锁拦得住。
+  if (n.native && n.cls == "Button" && (n.patterns & (uia::P_INVOKE | uia::P_TOGGLE))) {
+    HWND b = reinterpret_cast<HWND>(static_cast<uintptr_t>(n.native));
+    if (IsWindow(b)) {
+      auto r = input::bm_click(b);
+      if (r && toggle_first && inv) {
+        inv->kind = "toggle";
+        inv->data = selector_of(n, h);
+      }
+      return r;
+    }
+  }
   if (!toggle_first && (n.patterns & uia::P_INVOKE)) return s.invoke(n);
   if (n.patterns & uia::P_TOGGLE) {
     auto r = s.toggle(n);
@@ -327,7 +340,14 @@ Engine::Outcome Engine::run_ladder(const Target& t, const std::string& action, c
     if (it == ladder.end()) continue;
     const Activity::Mark mark = verify ? Activity::get().mark(t.hwnd, t.pid) : Activity::Mark{};
     Stopwatch sw;
-    Res<void> r = it->run();
+    Res<void> r;
+    bool disturbed = false;
+    {
+      // 后台模式下，除了明确允许切前台的 hop，其余通道都不能把目标窗口顶到用户当前窗口之上。
+      input::FocusShield shield(t.hwnd, !st.foreground() && it->name != "hop");
+      r = it->run();
+      disturbed = shield.disturbed();
+    }
     const u64 ns = sw.ns();
     const double ms = static_cast<double>(ns) / 1e6;
     const store::ArmKey key{t.app, role, action, name};
@@ -346,7 +366,8 @@ Engine::Outcome Engine::run_ladder(const Target& t, const std::string& action, c
       confirmed = react_us > 0;
       exp_.set_num("react:" + t.app, confirmed ? 0.7 * react + 0.3 * (static_cast<double>(react_us) / 1000.0) : std::max(1.5, react * 0.85));
     }
-    const double reward = !verify ? 0.9 / (1.0 + ms / 6.0) : confirmed ? std::max(0.3, 1.0 / (1.0 + ms / 6.0)) : 0.45;
+    double reward = !verify ? 0.9 / (1.0 + ms / 6.0) : confirmed ? std::max(0.3, 1.0 / (1.0 + ms / 6.0)) : 0.45;
+    if (disturbed) reward *= 0.4;  // 通道虽然生效，却动了用户的前台窗口：让经验库往不打扰的通道倾斜
     exp_.update(key, true, reward, ms);
     out.ok = true;
     out.confirmed = confirmed;
@@ -354,6 +375,7 @@ Engine::Outcome Engine::run_ladder(const Target& t, const std::string& action, c
     out.us = ns / 1000;
     out.extra = Json::object();
     if (verify) out.extra.set("reaction_us", react_us);
+    if (disturbed) out.extra.set("focus", "target briefly took the foreground and was put back");
     if (!tried.empty()) out.extra.set("fell_back_from", tried);
     return out;
   }

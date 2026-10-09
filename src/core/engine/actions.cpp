@@ -42,6 +42,66 @@ bool own_window(HWND w) {
   GetWindowThreadProcessId(w, &pid);
   return pid && is_own(pid, text::lower(win::exe_name_of_pid(pid)));
 }
+
+// 写入文本值。经典 Win32 编辑框上 UIA 的 SetValue 会在目标进程里自己抢前台，前台锁拦不住；
+// 直接发 WM_SETTEXT 与系统自带的 UIA 代理等价，而且拦得住。其余控件走 UIA 的 ValuePattern。
+Res<void> set_text(const uia::Node& n, const std::wstring& v) {
+  if (n.native && (n.cls == "Edit" || n.cls.rfind("RichEdit", 0) == 0)) {
+    HWND c = win::to_hwnd(n.native);
+    if (c && IsWindow(c)) {
+      if (!(n.flags & uia::F_ENABLED)) return fail(E_DENIED, "element is disabled");
+      if (GetWindowLongPtrW(c, GWL_STYLE) & ES_READONLY) return fail(E_DENIED, "element is read-only");
+      DWORD_PTR res = 0;
+      if (!SendMessageTimeoutW(c, WM_SETTEXT, 0, reinterpret_cast<LPARAM>(v.c_str()), SMTO_ABORTIFHUNG, 400, &res)) return fail(E_TIMEOUT, "control did not respond");
+      return {};
+    }
+  }
+  return uia::Service::get().set_value(n, v);
+}
+
+Res<void> toggle_node(const uia::Node& n) {
+  if (n.native && n.cls == "Button") {
+    HWND b = win::to_hwnd(n.native);
+    if (b && IsWindow(b)) return input::bm_click(b);
+  }
+  return uia::Service::get().toggle(n);
+}
+
+// launch 能起任何程序，等于绕开 Claude Code 自己对 Bash 的授权；这里设两道护栏（不是沙箱）：
+// 不起 Deixion 自己的程序；命令行解释器与脚本宿主默认不起，需要用户在设置里打开。
+std::string launch_name(const std::string& path) {
+  std::string n = path;
+  while (!n.empty() && (n.back() == ' ' || n.back() == '"' || n.back() == '\\' || n.back() == '/')) n.pop_back();
+  const size_t cut = n.find_last_of("\\/");
+  if (cut != std::string::npos) n.erase(0, cut + 1);
+  while (!n.empty() && (n.front() == ' ' || n.front() == '"')) n.erase(0, 1);
+  n = text::lower(n);
+  if (n.find('.') == std::string::npos) n += ".exe";
+  return n;
+}
+bool launches_own_program(const std::string& name, const std::string& path) {
+  if (name.rfind("deixion", 0) == 0 && name.size() > 4 && name.compare(name.size() - 4, 4, ".exe") == 0) return true;
+  if (name != "uninstall.exe") return false;
+  wchar_t self[MAX_PATH]{}, full[MAX_PATH]{};
+  GetModuleFileNameW(nullptr, self, MAX_PATH);
+  const std::wstring wp = text::widen(path);
+  if (!GetFullPathNameW(wp.c_str(), MAX_PATH, full, nullptr)) return false;
+  std::wstring a = full, b = self;
+  a = a.substr(0, a.find_last_of(L"\\/"));
+  b = b.substr(0, b.find_last_of(L"\\/"));
+  return text::lower(text::narrow(a)) == text::lower(text::narrow(b));
+}
+bool launches_shell_host(const std::string& name) {
+  static const std::unordered_set<std::string> kHosts = {"cmd.exe",     "powershell.exe", "pwsh.exe",   "powershell_ise.exe", "wscript.exe", "cscript.exe", "mshta.exe",
+                                                         "rundll32.exe", "regsvr32.exe",   "wsl.exe",    "bash.exe",           "wt.exe",      "conhost.exe"};
+  if (kHosts.count(name)) return true;
+  static const char* kScripts[] = {".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".reg"};
+  for (const char* ext : kScripts) {
+    const size_t n = std::char_traits<char>::length(ext);
+    if (name.size() >= n && name.compare(name.size() - n, n, ext) == 0) return true;
+  }
+  return false;
+}
 }  // namespace
 
 // 窗口目标缺省时，若给了屏幕坐标就用屏幕作目标；再把屏幕目标落到该点下面的真实顶层窗口，供消息通道使用。
@@ -119,6 +179,9 @@ Res<Json> Engine::a_click(const Json& p) {
   }
   if (auto v = apply_via(ladder, p); !v) return std::unexpected(v.error());
   Outcome out = run_ladder(t, "click", role, std::move(ladder), st, !hover);
+  if (out.ok && !hover && pr.node >= 0) {
+    if (const u64 nat = pr.snap->nodes[static_cast<size_t>(pr.node)].native) input::remember_focus(win::to_hwnd(nat));
+  }
   if (out.ok && out.strategy == "uia") out.inv = inv;
   if (out.ok && out.strategy == "uia_hit") out.inv = inv;
   const u64 jid = log_action("click", p, t, out);
@@ -161,7 +224,9 @@ Res<Json> Engine::a_type(const Json& p) {
   const std::string role = have_pt && pr.node >= 0 ? pr.snap->nodes[static_cast<size_t>(pr.node)].role : "focus";
 
   // 把输入焦点放到目标上：有控件就 UI Automation 聚焦，只有坐标就发一次后台点击。
-  if (p["focus"].as_bool(true) && have_pt && !fg) {
+  // UI Automation 的 SetFocus 会把目标窗口抬成系统前台，等于抢走用户正在输入的焦点；后台通道（消息 / 直接设值）本来就不需要焦点，
+  // 所以只在目标本来就是前台窗口时才设，绝不为了设焦点去激活别人的窗口。
+  if (p["focus"].as_bool(true) && have_pt && !fg && GetForegroundWindow() == GetAncestor(top, GA_ROOT)) {
     if (pr.node >= 0) (void)svc.focus(pr.snap->nodes[static_cast<size_t>(pr.node)]);
     else (void)input::msg_click(top, pr.px, input::Button::Left, 1);
   }
@@ -191,7 +256,7 @@ Res<Json> Engine::a_type(const Json& p) {
     const auto& n = f->first->nodes[static_cast<size_t>(f->second)];
     if (!(n.patterns & uia::P_VALUE)) return fail(E_UNSUPPORTED, "element has no value pattern");
     auto prev = svc.get_value(n);
-    if (auto r = svc.set_value(n, replace ? wtxt : text::widen(prev ? *prev : std::string()) + wtxt); !r) return r;
+    if (auto r = set_text(n, replace ? wtxt : text::widen(prev ? *prev : std::string()) + wtxt); !r) return r;
     set_inverse_value(n, prev ? *prev : std::string());
     return {};
   };
@@ -281,7 +346,7 @@ Res<Json> Engine::a_set_value(const Json& p) {
                       }
                       auto prev = svc.get_value(n);
                       const std::string v = p["value"].is_str() ? p["value"].as_str() : p["value"].dump();
-                      if (auto r = svc.set_value(n, text::widen(v)); !r) return r;
+                      if (auto r = set_text(n, text::widen(v)); !r) return r;
                       inv.kind = "set_value";
                       inv.data = selector_of(n, t.hwnd);
                       inv.data.set("prev", prev ? *prev : std::string());
@@ -567,6 +632,10 @@ Res<Json> Engine::a_launch(const Json& p) {
   if (auto g = gate(st); !g) return std::unexpected(g.error());
   const std::string path = p["path"].as_str();
   if (path.empty()) return fail(E_BAD_ARG, "path is required (an exe, document, or URL)");
+  const std::string lname = launch_name(path);
+  if (launches_own_program(lname, path)) return fail(E_DENIED, "launch cannot start Deixion's own programs");
+  if (!st.allow_shell_launch && path.find("://") == std::string::npos && launches_shell_host(lname))
+    return fail(E_DENIED, "launching a command shell or script host is off; only the user can enable it in Deixion's settings (allow_shell_launch)");
   const bool fg = fg_mode(st, p);
   SHELLEXECUTEINFOW sei{sizeof sei};
   const std::wstring wp = text::widen(path), wa = text::widen(p["args"].as_str()), wd = text::widen(p["cwd"].as_str());
@@ -707,7 +776,9 @@ Res<Json> Engine::a_rollback(const Json& p) {
         r = std::unexpected(sel.error());
       } else {
         const auto& n = sel->first->nodes[static_cast<size_t>(sel->second)];
-        r = e.inv.kind == "toggle" ? uia::Service::get().toggle(n) : uia::Service::get().set_value(n, text::widen(d["prev"].as_str()));
+        auto win_h = win::resolve(d["hwnd"].as_str().empty() ? std::string("active") : "hwnd:" + d["hwnd"].as_str());
+        input::FocusShield shield(win_h ? *win_h : nullptr, !st.foreground());
+        r = e.inv.kind == "toggle" ? toggle_node(n) : set_text(n, text::widen(d["prev"].as_str()));
       }
     } else if (e.inv.kind == "window_rect") {
       auto h = win::resolve("hwnd:" + d["hwnd"].as_str());

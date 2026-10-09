@@ -7,6 +7,7 @@
 1. **C++23，llvm-mingw clang，UCRT 静态链接。** 目标是下载即用，不装运行库（CLAUDE.md 硬约束）。`-static` 见 CMakeLists.txt。
 2. **引擎单入口。** `Engine::call(method, json)` 是界面、CLI、MCP、IPC 共用的唯一入口（`core/engine/api.cpp` 方法表）。新能力只在一处登记。
 3. **后台优先的通道阶梯。** UIA 模式、窗口消息、兜底（`hop`，默认关）。不动真实光标、不抢焦点是硬要求。消息通道对 XAML/UWP 无效，所以按窗口类型调序（`msg_hostile`）。
+3a. **前台守护（`input::FocusShield`）。** 控件处理点击时自己 `SetFocus` 会把整个窗口顶成前台，实测与是谁发的消息无关（原始 `WM_LBUTTONDOWN` / `BM_CLICK` 都会）。每次后台通道执行期间持有 `LockSetForegroundWindow`，实测能拦住（无锁 3/3 抢占，有锁 0/4，且点击照常生效）；但 UIA 的 Invoke / Toggle / SetValue 是在目标进程内部激活，前台锁拦不住，所以经典 `Button` 类改发 `BM_CLICK`，`Edit` / `RichEdit` 改发 `WM_SETTEXT`（与系统自带 UIA 代理等价）。仍被抢到的，事后归还并让经验库降权。测试不用 `EVENT_SYSTEM_FOREGROUND`：被锁拦下的激活也会发该事件，真实前台没变，会误报。
 4. **经验库 + UCB + 遗忘。** 按（应用、角色、动作、通道）学习成功率与延迟，衰减因子 0.985，先验保留成本低的通道优先。
 5. **校验靠界面事件，不解析结果。** WinEvent 钩子统计窗口是否在变，动作后观察是否有变化（`core/engine/activity.*`）。
 6. **自研追加式记录文件（LogStore）。** 每条带 CRC-32C；打开时在第一条坏记录处截断；压缩用临时文件加原子替换。理由：源码未写明，此为推断。
@@ -36,6 +37,8 @@
 6. 安装器关闭正在运行的程序时，优雅退出超时（10 秒）后会 `TerminateProcess`，可能丢失未落盘的操作。
 7. 崩溃时经验库最多丢 11 次未落盘更新；日志异步写，约 500 ms 内的记录可能丢失。
 8. 游戏、自绘或独占输入的程序能否走后台模式，没有证据，需要逐个实测。
+9. 前台守护只用测试靶子（经典 Win32 控件）验证过；WPF、Electron、UWP 上的 UIA 动作是否会激活窗口、被抢到后“事后归还”会有多长的闪烁，没有实测。
+10. `launch` 的护栏（拒起自家程序、默认拒起命令行与脚本宿主）与 `batch` 白名单只约束 MCP 面；同一用户的其他进程（含模型自己的 shell）能直连命名管道或改 `settings.json`，防不了。
 
 ## 四、方向（不是排期）
 

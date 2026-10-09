@@ -12,6 +12,7 @@
 #include "core/engine/activity.hpp"
 #include "core/engine/engine.hpp"
 #include "core/engine/engine_util.hpp"
+#include "core/input/input.hpp"
 
 namespace dx::eng {
 namespace {
@@ -350,6 +351,8 @@ Res<Json> Engine::q_status(const Json&) {
   const geo::Frame sf = win::screen_frame();
   j.set("screen", rect_json(sf.r)).set("dpi", sf.dpi);
   j.set("activity_hook", Activity::get().hook_active());
+  const auto fs = input::shield_stats();
+  j.set("focus_shield", Json::object().set("locked", fs.locked).set("denied", fs.denied).set("restored", fs.restored));
   return j;
 }
 

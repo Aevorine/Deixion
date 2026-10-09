@@ -54,6 +54,7 @@ Claude Code ──stdio(MCP)──► deixion-cli.exe ──命名管道──�
 | 鼠标移动速度 | 无 | 由 `speed` 决定 |
 
 - **后台模式**下，部分窗口不接收普通窗口消息（例如 XAML / UWP 的内容窗口）。引擎会识别这类窗口，并把 UI Automation 排到消息通道前面。
+- **前台守护**：控件处理点击时通常会自己调用 `SetFocus`，把整个窗口顶到最前。所以后台动作执行期间，Deixion 会持有 Windows 的前台锁（`LockSetForegroundWindow`），目标窗口无法越过你正在使用的窗口。经典 Win32 控件上的 UI Automation 模式是在目标进程内部激活窗口的，会绕过这把锁，所以对这类控件，引擎直接发等价的消息：`Button` 类的按钮、复选框、单选框用 `BM_CLICK`，`Edit` / `RichEdit` 编辑框用 `WM_SETTEXT`。如果某个程序仍然抢到了前台，动作返回后会立刻把你原来的窗口还回去，结果里带一条 `focus` 说明，经验库也会降低该通道的收益，之后更少选它。`status` 会给出计数（`focus_shield`：`locked`、`denied`、`restored`）。用测试靶子实测：完整 MCP 会话跑 5 次，同时以亚毫秒间隔轮询系统前台窗口，靶子从未成为前台窗口。其他框架（WPF、Electron、游戏）尚未实测。
 - **允许短暂切前台兜底**（`allow_hop`，默认关）：只有开启后，后台动作才可能短暂把窗口切到前台。关闭时，需要前台的动作会直接返回错误，不会偷偷切换窗口。
 - 单次调用可以用 `mode: "background"` 把前台模式降为后台，但不能在后台模式里用单次调用升为前台。
 
@@ -71,7 +72,7 @@ Claude Code ──stdio(MCP)──► deixion-cli.exe ──命名管道──�
 | `drag` | `msg` → `hop` |
 | `window` / `launch` | Win32 窗口 API / Shell 启动 |
 
-`hop` 只在 `allow_hop` 开启时存在。非兜底通道会按下面的经验库重新排序；标记为兜底的通道只在前面的通道都失败后才会尝试。
+对经典 Win32 控件，`uia` 点击与 `uia_set` / `set_value` 写入实际以 `BM_CLICK` 和 `WM_SETTEXT` 完成（见上面的前台守护）。`hop` 只在 `allow_hop` 开启时存在。非兜底通道会按下面的经验库重新排序；标记为兜底的通道只在前面的通道都失败后才会尝试。
 
 **经验库**（`experience.dxl`）为每个（应用、角色、动作、通道）记一条统计，每次更新时旧统计乘以 0.985 衰减。候选通道用 UCB 排序：
 
@@ -120,7 +121,7 @@ Claude Code 通过 `deixion-cli mcp` 调用以下 18 个工具。`window` 可以
 | `set_value` | 通过 UIA 直接设值，不打字（可撤销） | `window`、`value`、点 |
 | `read` | 读取元素的值、文本或勾选状态 | `window`、点 |
 | `window_op` | 窗口管理 | `window`、`op`（focus / minimize / maximize / restore / close / move / resize / topmost）、`rect` |
-| `launch` | 启动程序、文档或网址（后台不抢焦点） | `path`、`args`、`cwd`、`wait_window_ms`（默认 3000） |
+| `launch` | 启动程序、文档或网址（后台不抢焦点）。不会启动 Deixion 自己的程序；命令行与脚本宿主（`cmd`、PowerShell、`wscript`、`.bat`、`.ps1` 等）默认也不启动，除非用户打开 `allow_shell_launch` | `path`、`args`、`cwd`、`wait_window_ms`（默认 3000） |
 | `wait` | 不靠固定 sleep 等待 | `for`（settle / element / gone / window）、`window`、`find`、`timeout_ms`（默认 5000）、`quiet_ms` |
 | `batch` | 一次调用执行多步（一次往返） | `steps`、`defaults`、`stop_on_error`（默认 true，最多 200 步） |
 | `undo` | 回滚最近 N 次可逆动作 | `count`（1–50）、`id` |
@@ -213,6 +214,7 @@ deixion-cli --inproc …                   不连接正在运行的 Deixion，�
 |---|---|---|
 | `mode` | `background` / `foreground`（`background`） | 后台或前台模式，见上文 |
 | `allow_hop` | 布尔（`false`） | 允许短暂切前台兜底 |
+| `allow_shell_launch` | 布尔（`false`） | 允许 `launch` 启动命令行与脚本宿主。只有用户能改：MCP 工具和 `batch` 都改不了 |
 | `speed` | `instant` / `fast` / `smooth`（`fast`） | 前台模式鼠标移动时长：0 ms / 120 ms / 380 ms（拖拽另计） |
 | `overlay` | 布尔（`true`） | 前台操作显示轨迹 |
 | `verify` | `auto` / `off`（`auto`） | 动作后是否核对界面变化，见下文「校验」 |
@@ -275,7 +277,7 @@ deixion-cli --inproc …                   不连接正在运行的 Deixion，�
 | `hover`（窗口消息） | 152 µs |
 | `capture`（截图，不画网格） | 16.5 ms |
 
-窗口消息通道与缓存查询在亚毫秒量级；经 UI Automation 的点击在单次观察中为个位数毫秒（约 7 ms），截图主要耗在抓取与编码上。数字随机器而异，请在你的机器上运行实测：
+窗口消息通道与缓存查询在亚毫秒量级；点击经典按钮（用 UI Automation 找到元素，以 `BM_CLICK` 送达）在端到端运行中为 4 到 10 ms，截图主要耗在抓取与编码上。数字随机器而异，请在你的机器上运行实测：
 
 ```text
 deixion-cli bench "<窗口标题片段>" 200
@@ -296,6 +298,7 @@ cmake --build build
 - `deixion-setup.exe`（安装器，输出名 `Deixion-Setup-x64.exe`）只在检测到 Node 时生成，因为安装包的打包脚本 `tools/pack-payload.mjs` 需要 Node 运行。
 - 有 Node 时，`ui/` 目录会被 `tools/pack-ui.mjs` 打包进 exe。没有 Node 时，界面不会打进 exe，需要设置环境变量 `DEIXION_UI_DIR` 指向 `ui/` 目录（仅用于开发）。
 - 上述步骤已在干净的 `build/` 目录上完整执行过（2026-10-09，零警告零错误）。
+- 端到端验证脚本在 `tools/e2e/`（只有端到端，没有单元测试）：`e2e-setup.ps1` 覆盖安装、带占用的升级、损坏安装包的回滚、卸载；`mcp-e2e.mjs` 用真实 MCP 会话驱动测试靶子并核对靶子自己写出的状态，同时检查权限边界；`mcp-stress.mjs <次数> [通道] [chord]` 反复压测文字替换与 `Ctrl+A`；`focus-e2e.ps1 [-Runs N]` 在跑 MCP 会话的同时用一个高优先级线程轮询系统前台窗口，只要测试靶子成为过前台窗口就判失败。运行前需要先完整构建，脚本会结束正在运行的 Deixion 进程。
 
 第三方组件只有两个：WebView2 SDK 与 KaTeX，许可证和核验记录见 `third_party/AUDIT.md`。
 
@@ -306,6 +309,7 @@ cmake --build build
 ## 已知限制与待确认
 
 - 安装、带占用的升级、损坏安装包的拒绝与回滚、卸载自删已做端到端验证。**WebView2 缺失时的自动补装需要联网且本机已有运行时，未实测**；快捷方式的创建在界面流程中验证过，未逐项核对 `.lnk` 内容。
+- `launch` 的护栏与 `batch` 白名单限制的是模型能通过 MCP 工具做什么，它们是护栏，不是沙箱。同一个 Windows 用户下的其他程序（包括模型自己能运行的 shell）可以直接连命名管道或改 `settings.json`，Deixion 防不了这一点；模型被允许启动的程序本身也可能再起一个 shell。
 - 后台模式对部分程序无效，例如不处理窗口消息、也不暴露 UI Automation 模式的程序。失败时会返回原因，可以更换目标，或开启 `allow_hop`。游戏等使用自绘或独占输入的程序是否可用，待确认。
 - 断电时，最近写入的少量记录可能丢失。进程崩溃时，经验库中尚未落盘的更新最多 11 次。
 - 日志异步写入。进程崩溃时，队列中尚未写出的日志（约 500 ms 内）可能丢失。

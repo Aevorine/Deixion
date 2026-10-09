@@ -26,7 +26,7 @@ bool one_of(const std::string& v, std::initializer_list<const char*> opts) {
 
 Json Settings::to_json() const {
   Json j = Json::object();
-  j.set("mode", mode).set("allow_hop", allow_hop).set("speed", speed).set("overlay", overlay).set("verify", verify);
+  j.set("mode", mode).set("allow_hop", allow_hop).set("allow_shell_launch", allow_shell_launch).set("speed", speed).set("overlay", overlay).set("verify", verify);
   j.set("jpeg_quality", jpeg_quality).set("max_image_dim", max_image_dim).set("grid_default", grid_default).set("log_level", log_level);
   j.set("autostart", autostart).set("check_updates", check_updates).set("close_to_tray", close_to_tray).set("paused", paused);
   j.set("theme", theme).set("density", density).set("hotkeys", hotkeys);
@@ -38,6 +38,7 @@ Settings Settings::from_json(const Json& j) {
   s.hotkeys = default_hotkeys();
   if (one_of(j["mode"].as_str(), {"background", "foreground"})) s.mode = j["mode"].as_str();
   if (j.has("allow_hop")) s.allow_hop = j["allow_hop"].as_bool(s.allow_hop);
+  if (j.has("allow_shell_launch")) s.allow_shell_launch = j["allow_shell_launch"].as_bool(false);
   if (one_of(j["speed"].as_str(), {"instant", "fast", "smooth"})) s.speed = j["speed"].as_str();
   if (j.has("overlay")) s.overlay = j["overlay"].as_bool(s.overlay);
   if (one_of(j["verify"].as_str(), {"auto", "off"})) s.verify = j["verify"].as_str();

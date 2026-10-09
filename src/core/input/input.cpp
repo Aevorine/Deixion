@@ -1,7 +1,10 @@
 #include "core/input/input.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <mutex>
+#include <unordered_map>
 
 #include "core/base/clock.hpp"
 #include "core/win/window.hpp"
@@ -42,12 +45,32 @@ LPARAM key_lp(u16 vk, bool up, bool ext) {
   return l;
 }
 
+// 后台点击 / 输入不激活目标窗口，系统因此不会给它登记键盘焦点（hwndFocus 为空）。
+// 这里记下我们最后一次点击或输入的控件，当作“虚拟焦点”：真实焦点存在时以真实为准，为空时才用它。
+std::mutex g_vf_mu;
+std::unordered_map<HWND, HWND> g_vf;
+
+void note_focus(HWND any, HWND ctl) {
+  if (!any || !ctl) return;
+  HWND root = GetAncestor(any, GA_ROOT);
+  if (!root) return;
+  std::lock_guard lk(g_vf_mu);
+  if (g_vf.size() > 64) g_vf.clear();
+  g_vf[root] = ctl;
+}
+
 HWND focus_target(HWND top) {
   DWORD pid = 0;
   const DWORD tid = GetWindowThreadProcessId(top, &pid);
   GUITHREADINFO gi{};
   gi.cbSize = sizeof gi;
   if (GetGUIThreadInfo(tid, &gi) && gi.hwndFocus) return gi.hwndFocus;
+  HWND root = GetAncestor(top, GA_ROOT);
+  if (root) {
+    std::lock_guard lk(g_vf_mu);
+    auto it = g_vf.find(root);
+    if (it != g_vf.end() && IsWindow(it->second) && IsChild(root, it->second)) return it->second;
+  }
   return top;
 }
 
@@ -89,6 +112,17 @@ Res<void> msg_click(HWND top, geo::PointI sp, Button b, int count, bool hover_on
     if (!smsg(c, i == 0 ? m.down : m.dbl, m.mk, lp)) return fail(E_TIMEOUT, "target window did not respond (hung?)");
     smsg(c, m.up, 0, lp);
   }
+  note_focus(top, c);
+  return {};
+}
+
+// 经典 Win32 按钮（Button 类：按钮 / 复选 / 单选）的点击。按钮若弹出模态对话框，处理函数不会在超时内返回，
+// 这时点击已经送达，不能当失败（否则梯子会再换一个通道点第二次）。
+Res<void> bm_click(HWND button) {
+  DWORD_PTR res = 0;
+  SetLastError(0);
+  if (SendMessageTimeoutW(button, BM_CLICK, 0, 0, kSmtoFlags, kSmtoMs, &res) == 0 && GetLastError() != ERROR_TIMEOUT)
+    return fail(E_TIMEOUT, "target window did not respond (hung?)");
   return {};
 }
 
@@ -115,6 +149,8 @@ Res<void> msg_scroll(HWND top, geo::PointI sp, int v, int h) {
   return {};
 }
 
+void remember_focus(HWND ctl) { note_focus(ctl, ctl); }
+
 HWND focus_hwnd(HWND top) { return focus_target(top); }
 
 Res<void> msg_text(HWND dest, const std::wstring& text, bool direct) {
@@ -127,6 +163,7 @@ Res<void> msg_text(HWND dest, const std::wstring& text, bool direct) {
     }
     if (!smsg(f, WM_CHAR, ch, 1)) return fail(E_TIMEOUT, "target window did not respond (hung?)");
   }
+  if (direct) note_focus(dest, dest);
   return {};
 }
 
@@ -318,6 +355,39 @@ Hop::Hop(HWND target, bool restore_cursor) : restore_cursor_(restore_cursor) {
 Hop::~Hop() {
   if (restore_cursor_) SetCursorPos(prev_cursor_.x, prev_cursor_.y);
   if (changed_ && prev_fg_ && IsWindow(prev_fg_)) force_foreground(prev_fg_);
+}
+
+// 控件处理 WM_LBUTTONDOWN / BM_CLICK 时会自己 SetFocus，把整个窗口顶成系统前台；
+// 持有前台锁期间，这种由目标进程自己发起的激活会被系统拒绝，点击照常生效。
+namespace {
+std::atomic<u64> g_locked{0}, g_denied{0}, g_restored{0};
+}
+
+ShieldStats shield_stats() { return {g_locked.load(), g_denied.load(), g_restored.load()}; }
+
+FocusShield::FocusShield(HWND target, bool active) {
+  if (!active || !target) return;
+  prev_ = GetForegroundWindow();
+  if (!prev_) return;
+  GetWindowThreadProcessId(target, &pid_);
+  locked_ = LockSetForegroundWindow(LSFW_LOCK) != 0;
+  (locked_ ? g_locked : g_denied).fetch_add(1);
+}
+
+bool FocusShield::disturbed() const {
+  if (!prev_) return false;
+  HWND now = GetForegroundWindow();
+  if (!now || now == prev_ || !IsWindow(prev_)) return false;
+  DWORD pid = 0;
+  GetWindowThreadProcessId(now, &pid);
+  return pid && pid == pid_;
+}
+
+FocusShield::~FocusShield() {
+  if (!prev_) return;
+  if (locked_) LockSetForegroundWindow(LSFW_UNLOCK);
+  // 兜底：目标没被前台锁拦住（例如 UIA 在目标进程里自己激活），且用户当时的窗口还在，就还回去。
+  if (disturbed() && force_foreground(prev_)) g_restored.fetch_add(1);
 }
 
 }  // namespace dx::input

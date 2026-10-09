@@ -10,6 +10,7 @@ namespace dx::eng {
 struct Settings {
   std::string mode{"background"};
   bool allow_hop{false};
+  bool allow_shell_launch{false};
   std::string speed{"fast"};
   bool overlay{true};
   std::string verify{"auto"};

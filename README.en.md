@@ -55,6 +55,7 @@ Claude Code ──stdio (MCP)──► deixion-cli.exe ──named pipe──►
 | Mouse travel time | Not applicable | Set by `speed` |
 
 - **In background mode**, some windows ignore ordinary window messages (for example XAML / UWP content windows). The engine recognises these windows and moves UI Automation ahead of the message channels.
+- **Focus guard.** A control that handles a click usually calls `SetFocus` itself, which pulls the whole window to the front. While a background action runs, Deixion therefore holds the Windows foreground lock (`LockSetForegroundWindow`), so the target cannot move above the window you are using. UI Automation patterns on classic Win32 controls activate the target from inside its own process and slip past that lock, so for those controls the engine sends the equivalent message itself: `BM_CLICK` for `Button`-class buttons, check boxes and radio buttons, and `WM_SETTEXT` for `Edit` / `RichEdit` boxes. If a program still takes the foreground, the window you were using is put back as soon as the action returns, the result carries a `focus` note, and the experience store lowers the reward of that channel so it is chosen less often. `status` reports the counters (`focus_shield`: `locked`, `denied`, `restored`). Measured with the test target: five full MCP sessions with the foreground window polled at sub-millisecond resolution, and the target never became the foreground window. Other frameworks (WPF, Electron, games) have not been measured.
 - **Brief foreground fallback** (`allow_hop`, off by default): only when this is on can a background action briefly bring the window to the front. When it is off, actions that need the foreground return an error and never switch windows behind your back.
 - A single call can downgrade foreground mode to background with `mode: "background"`, but a single call cannot upgrade background mode to foreground.
 
@@ -72,7 +73,7 @@ Every action has an ordered list of **channels** (strategies). In foreground mod
 | `drag` | `msg` → `hop` |
 | `window` / `launch` | Win32 window APIs / Shell launch |
 
-`hop` exists only when `allow_hop` is on. Non-fallback channels are re-ordered by the experience store described below. Channels marked as fallbacks are tried only after the earlier ones have failed.
+For classic Win32 controls the `uia` click and the `uia_set` / `set_value` write are carried out as `BM_CLICK` and `WM_SETTEXT` (see the focus guard above). `hop` exists only when `allow_hop` is on. Non-fallback channels are re-ordered by the experience store described below. Channels marked as fallbacks are tried only after the earlier ones have failed.
 
 **Experience store** (`experience.dxl`) keeps one statistics record for each (application, role, action, channel) tuple. On every update the old statistics are multiplied by 0.985 (decay). Candidate channels are ranked with UCB:
 
@@ -121,7 +122,7 @@ Claude Code calls these 18 tools through `deixion-cli mcp`. `window` accepts a t
 | `set_value` | Sets a value directly through UIA without typing (undoable) | `window`, `value`, point |
 | `read` | Reads an element's value, text or toggle state | `window`, point |
 | `window_op` | Window management | `window`, `op` (focus / minimize / maximize / restore / close / move / resize / topmost), `rect` |
-| `launch` | Starts a program, document or URL (background does not steal focus) | `path`, `args`, `cwd`, `wait_window_ms` (default 3000) |
+| `launch` | Starts a program, document or URL (background does not steal focus). It refuses Deixion's own programs, and refuses command shells and script hosts (`cmd`, PowerShell, `wscript`, `.bat`, `.ps1`, …) unless the user turns on `allow_shell_launch` | `path`, `args`, `cwd`, `wait_window_ms` (default 3000) |
 | `wait` | Waits without fixed sleeps | `for` (settle / element / gone / window), `window`, `find`, `timeout_ms` (default 5000), `quiet_ms` |
 | `batch` | Runs many steps in one call (one round trip) | `steps`, `defaults`, `stop_on_error` (default true, at most 200 steps) |
 | `undo` | Rolls back the most recent N reversible actions | `count` (1–50), `id` |
@@ -214,6 +215,7 @@ Settings are stored in `settings.json` in the data folder. Writes go to a tempor
 |---|---|---|
 | `mode` | `background` / `foreground` (`background`) | Background or foreground mode, see above |
 | `allow_hop` | boolean (`false`) | Allow a brief switch to the foreground as a fallback |
+| `allow_shell_launch` | boolean (`false`) | Let `launch` start command shells and script hosts. Only the user can change it: the MCP tools and `batch` cannot |
 | `speed` | `instant` / `fast` / `smooth` (`fast`) | Mouse travel time in foreground mode: 0 ms / 120 ms / 380 ms (drag is timed separately) |
 | `overlay` | boolean (`true`) | Show the action trail in foreground mode |
 | `verify` | `auto` / `off` (`auto`) | Whether to check the UI for a change after an action, see "Verification" below |
@@ -276,7 +278,7 @@ Round-trip latency measured with `deixion-cli bench` on 2026-10-09 on an Intel C
 | `hover` (window message) | 152 µs |
 | `capture` (screenshot, no grid) | 16.5 ms |
 
-The window-message channel and cached queries are sub-millisecond. A click through UI Automation was a single-digit number of milliseconds in one observation (about 7 ms), and a screenshot is dominated by capture and encoding. Numbers vary by machine; measure on yours:
+The window-message channel and cached queries are sub-millisecond. A click on a classic button (element found through UI Automation, delivered as `BM_CLICK`) took 4 to 10 ms in the end-to-end runs, and a screenshot is dominated by capture and encoding. Numbers vary by machine; measure on yours:
 
 ```text
 deixion-cli bench "<window title fragment>" 200
@@ -297,6 +299,7 @@ cmake --build build
 - `deixion-setup.exe` (the installer, with output name `Deixion-Setup-x64.exe`) is generated only when Node is found, because the payload packer `tools/pack-payload.mjs` runs on Node.
 - With Node present, the `ui/` folder is packed into the exe by `tools/pack-ui.mjs`. Without Node, the UI is not packed into the exe, and the environment variable `DEIXION_UI_DIR` must point at the `ui/` folder (for development only).
 - The steps above were run in full on a clean `build/` folder (2026-10-09, zero warnings and zero errors).
+- End-to-end scripts live in `tools/e2e/` (end to end only, no unit tests): `e2e-setup.ps1` covers install, upgrade over locked files, rollback on a damaged package and uninstall; `mcp-e2e.mjs` drives the test target through a real MCP session, checks the state the target itself wrote, and checks the permission boundaries; `mcp-stress.mjs <runs> [channel] [chord]` hammers text replacement and `Ctrl+A`; `focus-e2e.ps1 [-Runs N]` runs the MCP session while a high-priority thread polls the system foreground window, and fails if the test target ever becomes the foreground window. Build everything first; the scripts stop any running Deixion process.
 
 There are only two third-party components: the WebView2 SDK and KaTeX. Their licences and verification records are in `third_party/AUDIT.md`.
 
@@ -308,6 +311,7 @@ There are only two third-party components: the WebView2 SDK and KaTeX. Their lic
 
 - Install, upgrade over locked files, rejection and rollback of a damaged package, and self-deleting uninstall were verified end to end. **The automatic WebView2 download needs a network and a machine without the runtime, and was not exercised**; shortcut creation was exercised through the UI flow but the `.lnk` contents were not checked item by item.
 - Background mode does not work with every program, for example programs that ignore window messages or do not expose UI Automation patterns. A failure returns its reason, and you can retarget or enable `allow_hop`. Whether games (programs that draw their own UI or take exclusive input) work is to be confirmed.
+- The `launch` guard and the `batch` allow-list limit what a model can do through the MCP tools; they are guard rails, not a sandbox. Another program of the same Windows user (including a shell the model can run itself) can talk to the named pipe or edit `settings.json` directly, and Deixion cannot defend against that. A program the model is allowed to start can itself start a shell.
 - On power loss, a few of the most recent records may be lost. On a crash, up to 11 experience-store updates may not yet be on disk.
 - Logging is asynchronous. If the process crashes, log lines still in the queue (up to about 500 ms) may be lost.
 - The page list follows the code: there are 10 pages (Overview, Locate, Elements, Actions, Experience, Logs, Performance, Claude Code, Guide, Settings).

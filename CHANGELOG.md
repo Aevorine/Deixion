@@ -2,6 +2,12 @@
 
 All notable changes to Deixion. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/). Release assets: `Deixion-Setup-x64.exe` and `SHA256SUMS.txt`.
 
+## [Unreleased]
+
+### Added
+- Wiki sources in `docs/wiki/` and `tools/sync-wiki.mjs` to publish them to the GitHub Wiki.
+- Open issues for the documented known limits (#4–#8).
+
 ## [1.0.4] - 2026-10-09
 
 ### Added

@@ -130,7 +130,7 @@ bool Engine::fg_mode(const Settings& st, const Json& p) const { return st.foregr
 
 int Engine::speed_ms(const Settings& st) const { return st.speed == "instant" ? 0 : st.speed == "smooth" ? 380 : 120; }
 
-Res<Engine::Target> Engine::target_of(const Json& p, bool required) {
+Res<Engine::Target> Engine::target_of(const Json& p, bool required, bool allow_minimized) {
   Target t;
   std::string spec = p["window"].as_str();
   if (spec.empty() && p["hwnd"].is_str()) spec = "hwnd:" + p["hwnd"].as_str();
@@ -158,7 +158,7 @@ Res<Engine::Target> Engine::target_of(const Json& p, bool required) {
   t.title = n > 0 ? text::narrow(std::wstring_view(buf, static_cast<size_t>(n))) : std::string();
   t.frame = win::client_frame(t.hwnd);
   if (t.frame.r.empty()) {
-    if (IsIconic(t.hwnd)) return fail(E_UNSUPPORTED, "window is minimized; restore it first (window op=restore)");
+    if (IsIconic(t.hwnd) && !allow_minimized) return fail(E_UNSUPPORTED, "window is minimized; restore it first (window op=restore)");
     t.frame = win::window_frame(t.hwnd);
   }
   return t;

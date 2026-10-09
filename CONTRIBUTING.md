@@ -29,7 +29,8 @@ Targets: `Deixion.exe` (UI + tray), `deixion-cli.exe` (CLI and MCP stdio server)
 
 There are no unit or integration tests, by design. Verify a change the way a user meets it: the real executable, real input, and a result you can see.
 
-- `tools/e2e/mcp-e2e.mjs`, `mcp-stress.mjs`, `focus-e2e.ps1`: engine, input and the “never steal the foreground” guarantee.
+- `tools/e2e/mcp-e2e.mjs`, `mcp-stress.mjs`, `focus-e2e.ps1`: engine, input and the “never steal the foreground” guarantee. They talk to whatever Deixion is already running unless `DX_E2E_ISOLATED=1` (`-Isolated` for `focus-e2e.ps1`) runs the freshly built engine in the script's own process.
+- `tools/e2e/console-e2e.ps1`: typing into a classic console window and restoring / maximizing / minimizing it from the background; always isolated.
 - `tools/e2e/e2e-setup.ps1`: install, upgrade over locked files, damaged package rollback, uninstall.
 - `tools/e2e/i18n-e2e.mjs`: the UI in both languages, page by page.
 

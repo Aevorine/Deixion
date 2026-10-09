@@ -4,13 +4,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { cliPlan } from './isolated.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..').split(path.sep).join('/');
 const stateFile = path.join(os.tmpdir(), 'dx-stress-state.json');
 fs.rmSync(stateFile, { force: true });
 const N = Number(process.argv[2] || 40);
 const VIA = process.argv[3] || '';
-const child = spawn(`${root}/build/deixion-cli.exe`, ['mcp'], { stdio: ['pipe', 'pipe', 'inherit'] });
+const plan = cliPlan(root);
+const child = spawn(plan.cmd, plan.mcpArgs, { stdio: ['pipe', 'pipe', 'inherit'] });
 let buf = '', id = 1; const pend = new Map();
 child.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!l) continue; const m = JSON.parse(l); pend.get(m.id)?.(m); pend.delete(m.id); } });
 const rpc = (method, params = {}) => new Promise((res, rej) => { const k = id++; const t = setTimeout(() => rej(new Error('timeout ' + method)), 20000); pend.set(k, (m) => { clearTimeout(t); res(m); }); child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: k, method, params }) + '\n'); });
@@ -43,5 +45,5 @@ for (let i = 0; i < N; i++) {
 console.log(`runs=${N} bad=${bad} strategies=${JSON.stringify(strat)}`);
 for (const s of samples) console.log('  BAD', JSON.stringify(s));
 await call('window_op', { window: W, op: 'close' });
-child.stdin.end(); await sleep(200); child.kill();
+child.stdin.end(); await sleep(200); child.kill(); await sleep(300); plan.cleanup();
 process.exit(bad ? 1 : 0);

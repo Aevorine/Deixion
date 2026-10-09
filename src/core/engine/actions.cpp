@@ -1,3 +1,4 @@
+#include <optional>
 #include <unordered_set>
 #include <windows.h>
 #include <shellapi.h>
@@ -676,7 +677,7 @@ Res<Json> Engine::a_window(const Json& p) {
   if (auto g = gate(st); !g) return std::unexpected(g.error());
   const std::string op = text::lower(p["op"].as_str());
   if (op.empty()) return fail(E_BAD_ARG, "op is required: focus, minimize, maximize, restore, close, move, resize, topmost");
-  auto tr = target_of(p, true);
+  auto tr = target_of(p, true, true);
   if (!tr) return std::unexpected(tr.error());
   Target t = *tr;
   if (t.screen) return fail(E_BAD_ARG, "window ops need a window");
@@ -699,6 +700,11 @@ Res<Json> Engine::a_window(const Json& p) {
     out.inv.data.set("hwnd", hwnd_str(t.hwnd)).set("state", was_min ? "minimized" : was_max ? "maximized" : "normal");
   };
   bool ok = true;
+  // 后台模式下窗口状态变化（还原 / 最大化 / 最小化）有的程序会自己激活，比如控制台：持有前台锁，事后把用户的窗口还回去。
+  const bool bg_state_op = !fg && (op == "restore" || op == "maximize" || op == "minimize");
+  HWND user_fg = bg_state_op ? GetForegroundWindow() : nullptr;
+  std::optional<input::FocusShield> shield;
+  if (bg_state_op) shield.emplace(t.hwnd, true);
   if (op == "focus") {
     if (!fg && !st.allow_hop) return fail(E_DENIED, "bringing a window to the front would interrupt the user; the user has to enable foreground mode or the brief-foreground fallback");
     ok = input::force_foreground(t.hwnd);
@@ -726,6 +732,18 @@ Res<Json> Engine::a_window(const Json& p) {
     ok = SetWindowPos(t.hwnd, p["on"].as_bool(true) ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE) != 0;
   } else {
     return fail(E_BAD_ARG, "unknown op: " + op);
+  }
+  if (bg_state_op && ok) {
+    // ShowWindowAsync 是异步的：等状态真的变了，再多等一小会儿让目标自己的激活发生，然后把前台还给用户。
+    for (int i = 0; i < 80; ++i) {
+      const bool done = op == "restore" ? !IsIconic(t.hwnd) : op == "maximize" ? IsZoomed(t.hwnd) != 0 : IsIconic(t.hwnd) != 0;
+      if (done) break;
+      Sleep(5);
+    }
+    Sleep(40);
+    shield.reset();
+    // 从最小化还原出来的窗口放在用户当前窗口的正下方：用户看到的仍是自己的窗口，目标照样可以被操控和截图。
+    if (op == "restore" && was_min && user_fg && user_fg != t.hwnd && IsWindow(user_fg)) SetWindowPos(t.hwnd, user_fg, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
   }
   out.ok = ok;
   out.us = sw.ns() / 1000;

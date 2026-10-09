@@ -4,13 +4,21 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-10-09
+
+### Fixed
+- Typing into a classic console window (the conhost window that hosts PowerShell or cmd) no longer duplicates characters. The console merges adjacent identical key events, so `--` arrived as `---` and `ee` as `eee`; text sent to such a window is now followed by a key-up message per character. Measured: `'-- ee --ee aa 11 ;;'` typed into Windows PowerShell inside conhost came out verbatim 3 of 3 times (1.0.4: 3 of 3 corrupted). Windows Terminal windows were not tested.
+- `window_op` works on minimized windows. `restore` and `maximize` used to fail with "window is minimized; restore it first". In background mode the foreground lock is held while the state changes, the window you were using is put back if the target activated itself, and a window restored from minimized is placed directly beneath yours. Measured on a console window: restore, maximize, minimize and restore again, with your window staying in front and the console never becoming the foreground window.
+
 ### Added
 - Wiki sources in `docs/wiki/` and `tools/sync-wiki.mjs` to publish them to the GitHub Wiki.
 - Open issues for the documented known limits (#4–#8).
 - `brand/social-preview.png`, the 1280×640 repository card (Settings → Social preview).
 - GitHub Package `@aevorine/deixion` (npm launcher, `packages/npm`): `install` downloads the release and verifies its SHA-256 against `SHA256SUMS.txt` before running it; `mcp` / `cli` forward to the installed `deixion-cli.exe`. Published by `.github/workflows/package.yml` when a release is published.
+- `tools/e2e/console-e2e.ps1`: end-to-end check of console typing and of restoring / maximizing / minimizing a minimized console (always isolated; `-Cli` compares another build).
 
 ### Changed
+- End-to-end scripts: `DX_E2E_ISOLATED=1` (`-Isolated` for `focus-e2e.ps1`) runs the freshly built engine inside the script's own process instead of connecting to whatever Deixion is already running, and `focus-e2e.ps1` only ends processes under the project folder.
 - `DEIXION_NO_CLAUDE=1` makes `--connect-claude` / `--disconnect-claude` do nothing; the installer end-to-end script sets it and restores the real uninstall entry, so running it no longer disconnects your own Claude Code.
 
 ## [1.0.4] - 2026-10-09
@@ -48,6 +56,7 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 ### Security
 - `batch` is limited to the actions and queries MCP already exposes; input actions cannot operate Deixion's own windows; the pipe client verifies the server runs as the current account.
 
+[1.0.5]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.5
 [1.0.4]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.4
 [1.0.3]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.3
 [1.0.2]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.2

@@ -57,7 +57,7 @@ async function ensureApp() {
   }
 }
 
-const mockUpdate = { state: 'current', current: '1.0.4', latest: '', notes: '', page: '', error: '', got: 0, total: 0, portable: false, repo: 'Aevorine/Deixion' };
+const mockUpdate = { state: 'current', current: '1.0.5', latest: '', notes: '', page: '', error: '', got: 0, total: 0, portable: false, repo: 'Aevorine/Deixion' };
 async function rpc(m, p) {
   if (m === 'app.info') {
     const st = (await pipeCall('status', {})).result || {};

@@ -4,14 +4,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { cliPlan, isolated } from './isolated.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..').split(path.sep).join('/');
-const cli = `${root}/build/deixion-cli.exe`;
+const plan = cliPlan(root);
+const cli = plan.cmd;
 const target = `${root}/build/dx-testapp.exe`;
 const stateFile = path.join(os.tmpdir(), 'dx-e2e-state.json');
 fs.rmSync(stateFile, { force: true });
 
-const child = spawn(cli, ['mcp'], { stdio: ['pipe', 'pipe', 'inherit'] });
+const child = spawn(cli, plan.mcpArgs, { stdio: ['pipe', 'pipe', 'inherit'] });
 let buf = '', nextId = 1;
 const pending = new Map();
 child.stdout.on('data', (d) => {
@@ -112,20 +114,22 @@ check('batch refuses settings.set / journal.clear / experience.reset / stop / ne
 const after = await call('status', {});
 check('settings untouched after the escalation attempt', after.json?.mode === 'background' && after.json?.allow_hop === false && after.json?.paused === false, `mode=${after.json?.mode} allow_hop=${after.json?.allow_hop}`);
 
-// 自我保护：输入动作不能操作 Deixion 自己的窗口，被动查询不受限
-spawn(`${root}/build/Deixion.exe`, [], { stdio: 'ignore', detached: true }).unref();
-await sleep(2500);
-const own = await call('elements', { window: 'exe:Deixion.exe' });
-check('own window is visible and readable (passive query allowed)', !own.isError && /Button/.test(own.text), own.text.slice(0, 80));
-for (const [name, args] of [
-  ['click', { window: 'exe:Deixion.exe', find: { text: '设置', role: 'Button' } }],
-  ['type', { window: 'exe:Deixion.exe', text: 'x' }],
-  ['key', { window: 'exe:Deixion.exe', keys: 'enter' }],
-]) {
-  const r = await call(name, args);
-  check(`input action '${name}' on Deixion's own window is refused`, r.isError && /own windows/.test(r.text), r.text.slice(0, 90));
+if (isolated) console.log('SKIP  own-window protection (needs the real Deixion.exe; not available in isolated mode)');
+else {
+  // 自我保护：输入动作不能操作 Deixion 自己的窗口，被动查询不受限
+  spawn(`${root}/build/Deixion.exe`, [], { stdio: 'ignore', detached: true }).unref();
+  await sleep(2500);
+  const own = await call('elements', { window: 'exe:Deixion.exe' });
+  check('own window is visible and readable (passive query allowed)', !own.isError && /Button/.test(own.text), own.text.slice(0, 80));
+  for (const [name, args] of [
+    ['click', { window: 'exe:Deixion.exe', find: { text: '设置', role: 'Button' } }],
+    ['type', { window: 'exe:Deixion.exe', text: 'x' }],
+    ['key', { window: 'exe:Deixion.exe', keys: 'enter' }],
+  ]) {
+    const r = await call(name, args);
+    check(`input action '${name}' on Deixion's own window is refused`, r.isError && /own windows/.test(r.text), r.text.slice(0, 90));
+  }
 }
-
 // launch 的护栏：不起 Deixion 自己的程序；命令行解释器与脚本宿主默认不起
 const SHELL = /command shell/;
 const guard = [
@@ -147,35 +151,40 @@ for (const [what, args, re] of guard) {
   check(`launch refuses ${what}`, r.isError && re.test(r.text), r.text.slice(0, 100));
 }
 
-// 严格模式只有用户能开（这里用 CLI 的 call 充当“用户”，MCP 面没有这个入口）：只有清单里的程序能启动
-const userCall = (method, obj) => {
-  const f = path.join(os.tmpdir(), 'dx-e2e-call.json');
-  fs.writeFileSync(f, JSON.stringify(obj));
-  const r = spawnSync(cli, ['call', method, `@${f}`], { encoding: 'utf8' });
-  fs.rmSync(f, { force: true });
-  return r;
-};
-userCall('settings.set', { patch: { launch_strict: true, launch_allow: ['dx-testapp.exe'] } });
-const listedOk = await call('launch', { path: target, args: `"${stateFile}"`, wait_window_ms: 3000 });
-check('strict mode: a listed program still starts', !listedOk.isError && listedOk.json?.ok === true, listedOk.text.slice(0, 80));
-if (listedOk.json?.window?.hwnd) await call('window_op', { window: `hwnd:${listedOk.json.window.hwnd}`, op: 'close' });
-for (const [what, args] of [
-  ['calc.exe (not listed)', { path: 'calc.exe' }],
-  ['notepad (not listed, bare name)', { path: 'notepad' }],
-  ['cmd.exe (not listed)', { path: 'cmd.exe' }],
-  ['explorer.exe with arguments', { path: 'explorer.exe', args: 'calc.exe' }],
-  ['an unknown link scheme', { path: 'ms-msdt:/id PCWDiagnostic' }],
-]) {
-  const r = await call('launch', args);
-  check(`strict mode: launch refuses ${what}`, r.isError && /restricted/.test(r.text), r.text.slice(0, 90));
+if (isolated) console.log('SKIP  strict launch mode (the user switch goes through the pipe; not available in isolated mode)');
+else {
+  // 严格模式只有用户能开（这里用 CLI 的 call 充当“用户”，MCP 面没有这个入口）：只有清单里的程序能启动
+  const userCall = (method, obj) => {
+    const f = path.join(os.tmpdir(), 'dx-e2e-call.json');
+    fs.writeFileSync(f, JSON.stringify(obj));
+    const r = spawnSync(cli, ['call', method, `@${f}`], { encoding: 'utf8' });
+    fs.rmSync(f, { force: true });
+    return r;
+  };
+  userCall('settings.set', { patch: { launch_strict: true, launch_allow: ['dx-testapp.exe'] } });
+  const listedOk = await call('launch', { path: target, args: `"${stateFile}"`, wait_window_ms: 3000 });
+  check('strict mode: a listed program still starts', !listedOk.isError && listedOk.json?.ok === true, listedOk.text.slice(0, 80));
+  if (listedOk.json?.window?.hwnd) await call('window_op', { window: `hwnd:${listedOk.json.window.hwnd}`, op: 'close' });
+  for (const [what, args] of [
+    ['calc.exe (not listed)', { path: 'calc.exe' }],
+    ['notepad (not listed, bare name)', { path: 'notepad' }],
+    ['cmd.exe (not listed)', { path: 'cmd.exe' }],
+    ['explorer.exe with arguments', { path: 'explorer.exe', args: 'calc.exe' }],
+    ['an unknown link scheme', { path: 'ms-msdt:/id PCWDiagnostic' }],
+  ]) {
+    const r = await call('launch', args);
+    check(`strict mode: launch refuses ${what}`, r.isError && /restricted/.test(r.text), r.text.slice(0, 90));
+  }
+  userCall('settings.set', { patch: { launch_strict: false, launch_allow: [] } });
+  const back = await call('status', {});
+  check('strict mode switched off again by the user', !back.isError);
 }
-userCall('settings.set', { patch: { launch_strict: false, launch_allow: [] } });
-const back = await call('status', {});
-check('strict mode switched off again by the user', !back.isError);
 
 await call('window_op', { window: W, op: 'close' });
 child.stdin.end();
 await sleep(300);
 child.kill();
+await sleep(300);
+plan.cleanup();
 console.log(`\nMCP RESULT: ${fails} failure(s)`);
 process.exit(fails ? 1 : 0);

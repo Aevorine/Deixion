@@ -29,7 +29,8 @@ CI does the same on a Windows runner with a pinned, hash-checked llvm-mingw and 
 
 No unit tests. Run the real thing and look at the result:
 
-- `tools/e2e/mcp-e2e.mjs`, `mcp-stress.mjs`, `focus-e2e.ps1`: engine, input, and “the test target never becomes the foreground window”.
+- `tools/e2e/mcp-e2e.mjs`, `mcp-stress.mjs`, `focus-e2e.ps1`: engine, input, and “the test target never becomes the foreground window”. The named pipe is one per user, so by default they talk to whatever Deixion is already running (an installed older version, say). Set `DX_E2E_ISOLATED=1` (`-Isolated` for `focus-e2e.ps1`) to run the freshly built engine inside the script's own process instead (`--inproc`, portable data under `.scratch/`); `DX_E2E_CLI` points that mode at another `deixion-cli.exe`.
+- `tools/e2e/console-e2e.ps1`: PowerShell in a classic console window gets `-- ee --ee aa 11 ;;` typed in the background and must receive it verbatim; a minimized console is restored / maximized / minimized / restored while a sub-millisecond poller checks that the console never becomes the foreground window. Always isolated; `-Cli` compares against another build.
 - `tools/e2e/e2e-setup.ps1`: install, upgrade over locked files, damaged-package rollback, uninstall. It sets `DEIXION_NO_CLAUDE=1` so the program leaves your Claude Code registration and skill alone, and it backs up and restores the real install's uninstall entry.
 - `tools/e2e/i18n-e2e.mjs`: the real app in both languages through the WebView2 debugging port. Pick a port outside `netsh int ipv4 show excludedportrange protocol=tcp`.
 - `node tools/i18n-check.mjs`: every Chinese string in the code has an English entry.

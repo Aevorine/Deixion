@@ -54,7 +54,8 @@ Claude Code ──stdio(MCP)──► deixion-cli.exe ──命名管道──�
 | 鼠标移动速度 | 无 | 由 `speed` 决定 |
 
 - **后台模式**下，部分窗口不接收普通窗口消息（例如 XAML / UWP 的内容窗口）。引擎会识别这类窗口，并把 UI Automation 排到消息通道前面。
-- **前台守护**：控件处理点击时通常会自己调用 `SetFocus`，把整个窗口顶到最前。所以后台动作执行期间，Deixion 会持有 Windows 的前台锁（`LockSetForegroundWindow`），目标窗口无法越过你正在使用的窗口。经典 Win32 控件上的 UI Automation 模式是在目标进程内部激活窗口的，会绕过这把锁，所以对这类控件，引擎直接发等价的消息：`Button` 类的按钮、复选框、单选框用 `BM_CLICK`，`Edit` / `RichEdit` 编辑框用 `WM_SETTEXT`。如果某个程序仍然抢到了前台，动作返回后会立刻把你原来的窗口还回去，结果里带一条 `focus` 说明，经验库也会降低该通道的收益，之后更少选它。`status` 会给出计数（`focus_shield`：`locked`、`denied`、`restored`）。用测试靶子实测：完整 MCP 会话跑 5 次，同时以亚毫秒间隔轮询系统前台窗口，靶子从未成为前台窗口。其他框架（WPF、Electron、游戏）尚未实测。
+- **经典控制台窗口**（`ConsoleWindowClass`，即 conhost 承载的 PowerShell / cmd 窗口）会把输入缓冲区里相邻的相同按键事件合并成一个带重复计数的事件，只发 `WM_CHAR` 时 `--` 会变成 `---`、`ee` 变成 `eee`。向这类窗口输入文字时，引擎在每个字符后补一个按键抬起消息，相邻事件不再相同，也就不会被合并。实测：在 conhost 里的 Windows PowerShell 中输入 `'-- ee --ee aa 11 ;;'`，v1.0.4 三次全部变成 `--- eee ---eee aaa 111 ;;;`，v1.0.5 三次逐字正确。Windows Terminal 窗口不是这类窗口，没有测过。
+- **前台守护**：控件处理点击时通常会自己调用 `SetFocus`，把整个窗口顶到最前。所以后台动作执行期间，Deixion 会持有 Windows 的前台锁（`LockSetForegroundWindow`），目标窗口无法越过你正在使用的窗口。经典 Win32 控件上的 UI Automation 模式是在目标进程内部激活窗口的，会绕过这把锁，所以对这类控件，引擎直接发等价的消息：`Button` 类的按钮、复选框、单选框用 `BM_CLICK`，`Edit` / `RichEdit` 编辑框用 `WM_SETTEXT`。如果某个程序仍然抢到了前台，动作返回后会立刻把你原来的窗口还回去，结果里带一条 `focus` 说明，经验库也会降低该通道的收益，之后更少选它。`status` 会给出计数（`focus_shield`：`locked`、`denied`、`restored`）。窗口状态变化也在这层保护之内：后台模式下的 `restore` / `maximize` / `minimize` 同样先持有前台锁，目标自己激活了就把你原来的窗口还回去；从最小化还原出来的窗口会被放在你当前窗口的正下方，所以它能被操控和截图，却不会盖在你的窗口上。用测试靶子实测（2026-10-09，v1.0.5，隔离模式）：完整 MCP 会话跑了 27 次，同时以亚毫秒间隔轮询系统前台窗口，其中 26 次靶子从未成为前台窗口，有 1 次在靶子刚被拉起时当了约 40 毫秒的前台，随即被还回；之后又连跑 24 次没有再出现。其他框架（WPF、Electron、游戏）尚未实测。
 - **允许短暂切前台兜底**（`allow_hop`，默认关）：只有开启后，后台动作才可能短暂把窗口切到前台。关闭时，需要前台的动作会直接返回错误，不会偷偷切换窗口。
 - 单次调用可以用 `mode: "background"` 把前台模式降为后台，但不能在后台模式里用单次调用升为前台。
 
@@ -120,7 +121,7 @@ Claude Code 通过 `deixion-cli mcp` 调用以下 18 个工具。`window` 可以
 | `drag` | 拖拽 | `window`、`from`、`to`、`button`、`steps` |
 | `set_value` | 通过 UIA 直接设值，不打字（可撤销） | `window`、`value`、点 |
 | `read` | 读取元素的值、文本或勾选状态 | `window`、点 |
-| `window_op` | 窗口管理 | `window`、`op`（focus / minimize / maximize / restore / close / move / resize / topmost）、`rect` |
+| `window_op` | 窗口管理。最小化的窗口可以直接 restore / maximize（其余动作仍要求先还原）；后台模式下这些状态变化不抢你的前台 | `window`、`op`（focus / minimize / maximize / restore / close / move / resize / topmost）、`rect` |
 | `launch` | 启动程序、文档或网址（后台不抢焦点）。不会启动 Deixion 自己的程序；除非用户打开 `allow_shell_launch`，命令行、脚本宿主和解释器（`cmd`、PowerShell、`wscript`、Python、Node、`.bat`、`.ps1`、`.url` 等）以及 `http`、`https`、`mailto`、`ms-settings` 之外的链接协议（含 `file:`）也都不会启动。检查针对还原后的真实文件名：引号、`file:` 网址、短文件名、末尾的点会先还原，`explorer.exe` 还会检查参数里点名的程序 | `path`、`args`、`cwd`、`wait_window_ms`（默认 3000） |
 | `wait` | 不靠固定 sleep 等待 | `for`（settle / element / gone / window）、`window`、`find`、`timeout_ms`（默认 5000）、`quiet_ms` |
 | `batch` | 一次调用执行多步（一次往返） | `steps`、`defaults`、`stop_on_error`（默认 true，最多 200 步） |
@@ -305,7 +306,7 @@ cmake --build build
 - `deixion-setup.exe`（安装器，输出名 `Deixion-Setup-x64.exe`）只在检测到 Node 时生成，因为安装包的打包脚本 `tools/pack-payload.mjs` 需要 Node 运行。
 - 有 Node 时，`ui/` 目录会被 `tools/pack-ui.mjs` 打包进 exe。没有 Node 时，界面不会打进 exe，需要设置环境变量 `DEIXION_UI_DIR` 指向 `ui/` 目录（仅用于开发）。
 - 上述步骤已在干净的 `build/` 目录上完整执行过（2026-10-09，零警告零错误）。
-- 端到端验证脚本在 `tools/e2e/`（只有端到端，没有单元测试）：`e2e-setup.ps1` 覆盖安装、带占用的升级、损坏安装包的回滚、卸载；`mcp-e2e.mjs` 用真实 MCP 会话驱动测试靶子并核对靶子自己写出的状态，同时检查权限边界；`mcp-stress.mjs <次数> [通道] [chord]` 反复压测文字替换与 `Ctrl+A`；`focus-e2e.ps1 [-Runs N]` 在跑 MCP 会话的同时用一个高优先级线程轮询系统前台窗口，只要测试靶子成为过前台窗口就判失败。`i18n-e2e.mjs` 用真实的 Deixion.exe（便携模式，放在临时目录）经 WebView2 调试端口逐页读界面：英文界面十个页面、所有分段开关、设置页弹窗里不许出现汉字，中文界面保持原样，点语言按钮后整页重载并写进 `settings.json`；`node tools/i18n-check.mjs` 静态检查词典是否覆盖了代码里的每一处中文。运行前需要先完整构建，脚本会结束正在运行的 Deixion 进程。
+- 端到端验证脚本在 `tools/e2e/`（只有端到端，没有单元测试）：`e2e-setup.ps1` 覆盖安装、带占用的升级、损坏安装包的回滚、卸载；`mcp-e2e.mjs` 用真实 MCP 会话驱动测试靶子并核对靶子自己写出的状态，同时检查权限边界；`mcp-stress.mjs <次数> [通道] [chord]` 反复压测文字替换与 `Ctrl+A`；`focus-e2e.ps1 [-Runs N] [-Isolated]` 在跑 MCP 会话的同时用一个高优先级线程轮询系统前台窗口，只要测试靶子成为过前台窗口就判失败；`console-e2e.ps1 [-Runs N] [-Cli 路径]` 拉起一个经典控制台窗口里的 PowerShell，后台连续输入 `-- ee --ee aa 11 ;;` 并核对它收到的内容逐字一致，再对最小化的控制台依次做 restore / maximize / minimize / restore，断言你的窗口始终在前台、控制台从未成为前台（脚本里有一步对照：不经 Deixion、直接 `ShowWindow(SW_RESTORE)` 会抢前台，说明这个断言抓得到抢占），`-Cli` 可换成别的 `deixion-cli.exe` 做新旧对照。`i18n-e2e.mjs` 用真实的 Deixion.exe（便携模式，放在临时目录）经 WebView2 调试端口逐页读界面：英文界面十个页面、所有分段开关、设置页弹窗里不许出现汉字，中文界面保持原样，点语言按钮后整页重载并写进 `settings.json`；`node tools/i18n-check.mjs` 静态检查词典是否覆盖了代码里的每一处中文。运行前需要先完整构建。命名管道每个用户只有一个，所以 `mcp-e2e.mjs`、`mcp-stress.mjs`、`focus-e2e.ps1` 默认会连上已经在运行的 Deixion（比如已安装的旧版本），测的就不是 `build/` 里的新二进制；设环境变量 `DX_E2E_ISOLATED=1`（`focus-e2e.ps1` 用 `-Isolated`）后，它们把 `deixion-cli.exe` 复制到 `.scratch/` 下，放 `portable.flag` 并用 `--inproc` 在自己的进程里跑引擎，不碰正在运行的 Deixion 和真实设置（这时需要真实 `Deixion.exe` 的“自身窗口保护”与“严格启动模式”两段会跳过）；`console-e2e.ps1` 始终隔离。`focus-e2e.ps1` 只结束可执行文件在项目目录下的进程；`e2e-setup.ps1` 会按进程名结束所有 Deixion / deixion-cli（包括已安装的那份），请在开发机上、退出日常使用的 Deixion 之后再跑。
 
 第三方组件只有两个：WebView2 SDK 与 KaTeX，许可证和核验记录见 `third_party/AUDIT.md`。
 
@@ -318,6 +319,8 @@ cmake --build build
 - 安装、带占用的升级、损坏安装包的拒绝与回滚、卸载自删已做端到端验证。**WebView2 缺失时的自动补装需要联网且本机已有运行时，未实测**；快捷方式的创建在界面流程中验证过，未逐项核对 `.lnk` 内容。
 - `launch` 的护栏与 `batch` 白名单限制的是模型能通过 MCP 工具做什么，它们是护栏，不是沙箱。同一个 Windows 用户下的其他程序（包括模型自己能运行的 shell）可以直接连命名管道或改 `settings.json`，Deixion 防不了这一点；模型被允许启动的程序本身也可能再起一个 shell。
 - 后台模式对部分程序无效，例如不处理窗口消息、也不暴露 UI Automation 模式的程序。失败时会返回原因，可以更换目标，或开启 `allow_hop`。游戏等使用自绘或独占输入的程序是否可用，待确认。
+- 对最小化窗口的状态操作只在经典控制台窗口上实测了 restore / maximize / minimize；对最小化窗口做 close / move / resize 的代码路径是放行的，没有单独测。`undo` 回滚窗口状态时没有套前台保护，也没测。
+- 往控制台输入：文字里的换行（`\n`）在 conhost 里的 Windows PowerShell 中不会提交命令，还会在行尾留下一个多余字符（v1.0.5 实测）；提交命令请用 `key` 的 `enter`。
 - 断电时，最近写入的少量记录可能丢失。进程崩溃时，经验库中尚未落盘的更新最多 11 次。
 - 日志异步写入。进程崩溃时，队列中尚未写出的日志（约 500 ms 内）可能丢失。
 - 界面页面以代码为准，共 10 个页面（总览、定位、元素、操作、经验、日志、性能、接入、指南、设置）。

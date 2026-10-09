@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui:
+    name: UI checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check every script
+        run: |
+          set -e
+          find ui/js tools -name '*.js' -o -name '*.mjs' | grep -v '/vendor/' | while read -r f; do node --check "$f"; done
+      - name: Every Chinese string has an English entry
+        run: node tools/i18n-check.mjs
+
+  build:
+    name: Build (llvm-mingw, Windows)
+    runs-on: windows-latest
+    env:
+      LLVM_MINGW_TAG: "20260616"
+      LLVM_MINGW_SHA256: "b9b68a4d276e16fa25802aaba458e4638f64b3884c290aaccdc2d87083b6ca35"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Toolchain (llvm-mingw, pinned and hash-checked)
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'llvm-mingw.zip'
+          $url = "https://github.com/mstorsjo/llvm-mingw/releases/download/$env:LLVM_MINGW_TAG/llvm-mingw-$env:LLVM_MINGW_TAG-ucrt-x86_64.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $env:LLVM_MINGW_SHA256) { throw "llvm-mingw hash mismatch: $got" }
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $bin = Join-Path $env:RUNNER_TEMP "llvm-mingw-$env:LLVM_MINGW_TAG-ucrt-x86_64\bin"
+          Add-Content $env:GITHUB_PATH $bin
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja -y --no-progress }
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_RC_COMPILER=llvm-windres
+      - name: Build
+        shell: pwsh
+        run: cmake --build build
+      - name: Release contract (names the updater looks for)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path build/Deixion-Setup-x64.exe)) { throw 'Deixion-Setup-x64.exe was not built' }
+          $h = (Get-FileHash build/Deixion-Setup-x64.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  Deixion-Setup-x64.exe" | Tee-Object -FilePath build/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Deixion-build-${{ github.sha }}
+          path: |
+            build/Deixion-Setup-x64.exe
+            build/SHA256SUMS.txt
+            build/Deixion.exe
+            build/deixion-cli.exe
+          retention-days: 14

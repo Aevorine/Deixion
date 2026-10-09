@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability / 报告安全漏洞
+    url: https://github.com/Aevorine/Deixion/security/advisories/new
+    about: Please report vulnerabilities privately, not as a public issue. / 请私下报告，不要开公开 issue。
+  - name: Documentation / 文档
+    url: https://github.com/Aevorine/Deixion#readme
+    about: Install, settings, tools, hotkeys and known limits. / 安装、设置、工具、快捷键与已知限制。

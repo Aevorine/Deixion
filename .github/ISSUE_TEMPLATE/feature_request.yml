@@ -1,0 +1,34 @@
+name: Feature request / 功能建议
+description: Propose an improvement or a new capability. / 提出改进或新功能。
+labels: [enhancement, needs-triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem / 要解决的问题
+      description: What are you trying to do that is hard or impossible today? / 现在做不到或很难做到的是什么？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour / 期望的做法
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered / 考虑过的其它办法
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area / 范围
+      multiple: true
+      options: [Engine / 引擎, MCP tools / MCP 工具, Desktop UI / 界面, Installer & updater / 安装与更新, Docs & skill / 文档与 skill, Other / 其它]
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Fit with the project / 与项目约束的关系
+      options:
+        - label: It keeps background mode from moving the user's cursor or taking focus. / 不会破坏后台模式「不动光标、不抢焦点」。
+        - label: It does not need a runtime that users must install separately. / 不需要用户另外安装运行库。

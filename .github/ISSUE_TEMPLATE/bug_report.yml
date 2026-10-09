@@ -1,0 +1,72 @@
+name: Bug report / 问题反馈
+description: Something does not work as documented. / 行为与文档不符。
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do **not** paste passwords, tokens, personal documents or screenshots of private windows. Deixion never logs typed text, but the window titles in your logs may be private.
+        请不要贴密码、令牌、私人文档或含隐私窗口的截图。Deixion 不记录输入的文字，但日志里的窗口标题可能是隐私。
+  - type: input
+    id: version
+    attributes:
+      label: Deixion version / 版本
+      description: Settings → Updates and about, or `deixion-cli --version`.
+      placeholder: "1.0.4"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version / Windows 版本
+      placeholder: "Windows 11 24H2, build 26100"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode / 模式
+      options: [Background, Foreground, Both / 两者都有, Not sure / 不确定]
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: Target app / 被操作的程序
+      description: Name and, if you know it, its UI framework (Win32, WPF, Electron, UWP, game…).
+      placeholder: "Notepad (Win32)"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened / 发生了什么
+      description: Include the exact tool call and the error text if there is one. / 请附上工具调用与报错原文。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected / 期望的结果
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / 复现步骤
+      placeholder: |
+        1. …
+        2. …
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / 日志
+      description: "Settings → Data folder → `logs`. Paste only the relevant lines. / 只贴相关几行。"
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist / 确认
+      options:
+        - label: I searched existing issues first. / 我先搜过已有的 issue。
+          required: true
+        - label: The report contains no secrets or private data. / 内容里没有密钥或隐私数据。
+          required: true

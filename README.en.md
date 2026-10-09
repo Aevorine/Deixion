@@ -178,6 +178,10 @@ Exit codes: `0` success; `3` the installer package is damaged; `4` the folder is
 
 **Data on upgrade and uninstall**: installing and upgrading never delete user data. Uninstalling removes the program files, the shortcuts, the sign-in entry, the uninstall registration, and the Claude Code MCP registration and skill, but keeps user data unless `/PURGE` is given.
 
+### Install from the command line (GitHub Package)
+
+The launcher package `@aevorine/deixion` on GitHub Packages has no program code of its own. `npx @aevorine/deixion install` downloads the release, **checks its SHA-256 against `SHA256SUMS.txt` and refuses to run it on a mismatch**, then starts the installer (`--silent`, `--version X.Y.Z` and `--dry-run` are supported). `npx @aevorine/deixion mcp` starts the MCP server of the installed `deixion-cli.exe`. GitHub's npm registry needs a token even for public packages; see `packages/npm/README.md` for the `.npmrc` lines.
+
 ## Updates
 
 The in-app update flow works as follows (code: `src/app/updater.cpp`):

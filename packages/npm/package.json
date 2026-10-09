@@ -1,0 +1,17 @@
+{
+  "name": "@aevorine/deixion",
+  "version": "0.0.0",
+  "description": "Launcher for Deixion: install it from the verified GitHub Release and start its MCP server for Claude Code. 安装并启动 Deixion 的 MCP 服务。",
+  "license": "MIT",
+  "type": "commonjs",
+  "bin": { "deixion": "bin/deixion.js" },
+  "files": ["bin", "README.md"],
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "engines": { "node": ">=18" },
+  "repository": { "type": "git", "url": "git+https://github.com/Aevorine/Deixion.git", "directory": "packages/npm" },
+  "homepage": "https://github.com/Aevorine/Deixion#readme",
+  "bugs": { "url": "https://github.com/Aevorine/Deixion/issues" },
+  "keywords": ["mcp", "claude-code", "windows", "ui-automation", "deixion"],
+  "publishConfig": { "registry": "https://npm.pkg.github.com", "access": "public" }
+}

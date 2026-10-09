@@ -25,7 +25,7 @@ jobs:
       - name: Syntax-check every script
         run: |
           set -e
-          find ui/js tools -name '*.js' -o -name '*.mjs' | grep -v '/vendor/' | while read -r f; do node --check "$f"; done
+          find ui/js tools packages -name '*.js' -o -name '*.mjs' | grep -v '/vendor/' | while read -r f; do node --check "$f"; done
       - name: Every Chinese string has an English entry
         run: node tools/i18n-check.mjs
 

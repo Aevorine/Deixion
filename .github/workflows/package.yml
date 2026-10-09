@@ -1,0 +1,45 @@
+name: Publish package
+
+# 把 packages/npm 作为 @aevorine/deixion 发到 GitHub Packages（npm 源）。版本号取自发布的 tag。
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish (for example v1.0.4)
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: "@aevorine"
+      - name: Set the version from the tag
+        id: ver
+        env:
+          TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+        run: |
+          v="${TAG#v}"
+          echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "bad tag: $TAG"; exit 1; }
+          cd packages/npm
+          npm version "$v" --no-git-tag-version --allow-same-version
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Check the launcher
+        run: |
+          node --check packages/npm/bin/deixion.js
+          node packages/npm/bin/deixion.js help
+      - name: Publish
+        working-directory: packages/npm
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

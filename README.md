@@ -177,6 +177,10 @@ deixion-cli --inproc …                   不连接正在运行的 Deixion，�
 
 **升级与卸载的数据**：安装与升级不删除用户数据。卸载会删除程序文件、快捷方式、自启项、卸载登记和 Claude Code 中的 MCP 注册与 skill，但默认保留用户数据；加 `/PURGE` 才会删除。
 
+### 命令行安装（GitHub Package）
+
+GitHub Packages 上的启动器包 `@aevorine/deixion` 本身不含程序。`npx @aevorine/deixion install` 会下载发布包，**按 `SHA256SUMS.txt` 校验 SHA-256，不一致就拒绝运行**，通过后才启动安装程序（支持 `--silent`、`--version X.Y.Z`、`--dry-run`）。`npx @aevorine/deixion mcp` 启动已安装的 `deixion-cli.exe` 的 MCP 服务。GitHub 的 npm 源即使是公开包也需要令牌，`.npmrc` 写法见 `packages/npm/README.md`。
+
 ## 更新
 
 应用内更新的流程如下（代码：`src/app/updater.cpp`）：

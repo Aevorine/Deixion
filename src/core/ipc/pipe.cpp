@@ -82,12 +82,23 @@ bool send_frame(HANDLE h, const std::string& s) {
   return write_all(h, &len, 4) && write_all(h, s.data(), s.size());
 }
 
+// 长度前缀是对端自己填的：不能先按它 resize 一大块再读（一个声称 96 MB 的帧就能让每个连接占 96 MB），
+// 按实际读到的内容逐块增长，连接断了就停。
 bool recv_frame(HANDLE h, std::string& out) {
   u32 len = 0;
   if (!read_exact(h, &len, 4) || len > kMaxFrame) return false;
-  out.resize(len);
-  return len == 0 || read_exact(h, out.data(), len);
+  out.clear();
+  size_t have = 0;
+  while (have < len) {
+    const size_t chunk = std::min<size_t>(len - have, 1u << 20);
+    out.resize(have + chunk);
+    if (!read_exact(h, out.data() + have, chunk)) return false;
+    have += chunk;
+  }
+  return true;
 }
+
+constexpr size_t kMaxClients = 64;
 }  // namespace
 
 std::wstring pipe_name() {
@@ -115,7 +126,13 @@ Res<void> Server::start(Handler h) {
 void Server::accept_loop() {
   const std::wstring sddl = L"D:P(A;;GA;;;" + user_sid_string() + L")(A;;GA;;;SY)";
   SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, FALSE};
-  ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &sa.lpSecurityDescriptor, nullptr);
+  // 转换失败时不能退回默认安全描述符（默认 DACL 对其它账户是可读的）：宁可不再接受新连接。
+  if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &sa.lpSecurityDescriptor, nullptr)) {
+    LOGE("ipc", "cannot build the pipe security descriptor; not accepting new connections");
+    if (first_ != INVALID_HANDLE_VALUE) CloseHandle(first_);
+    first_ = INVALID_HANDLE_VALUE;
+    return;
+  }
   HANDLE pipe = first_;
   first_ = INVALID_HANDLE_VALUE;
   while (running_) {
@@ -135,6 +152,14 @@ void Server::accept_loop() {
     if (!ok) {
       CloseHandle(pipe);
       pipe = INVALID_HANDLE_VALUE;
+      continue;
+    }
+    // 每个连接一个线程：不设上限的话，同一账户下的一个循环就能把线程与内存耗尽。
+    if (clients_.load() >= kMaxClients) {
+      DisconnectNamedPipe(pipe);
+      CloseHandle(pipe);
+      pipe = INVALID_HANDLE_VALUE;
+      sleep_us(20000);
       continue;
     }
     {
@@ -158,7 +183,14 @@ void Server::serve(HANDLE pipe) {
       resp.set("ok", false).set("error", Json::object().set("code", "bad_arg").set("message", "malformed request"));
     } else {
       resp.set("id", (*req)["id"]);
-      auto r = handler_((*req)["method"].as_str(), (*req)["params"]);
+      Res<Json> r = fail(E_INTERNAL, "unexpected failure");
+      try {
+        r = handler_((*req)["method"].as_str(), (*req)["params"]);
+      } catch (const std::exception& ex) {
+        r = fail(E_INTERNAL, std::string("internal error: ") + ex.what());
+      } catch (...) {
+        r = fail(E_INTERNAL, "internal error");
+      }
       if (r) {
         resp.set("ok", true).set("result", std::move(*r));
       } else {

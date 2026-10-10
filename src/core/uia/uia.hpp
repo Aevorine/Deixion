@@ -98,10 +98,12 @@ class Service {
   Res<void> set_value(const Node& n, const std::wstring& v);
   Res<std::string> get_value(const Node& n);
   Res<void> focus(const Node& n);
+  bool has_focus(const Node& n);  // 实时查询：元素此刻是否持有键盘焦点（缓存里的标志可能已过期）
   Res<void> scroll_into_view(const Node& n);
   Res<void> default_action(const Node& n);
   Res<void> scroll(const Node& container, int h, int v);
   Res<void> set_range(const Node& n, double v);
+  Res<double> get_range(const Node& n);
   Res<std::string> toggle_state(const Node& n);
 
   IUIAutomation* raw();

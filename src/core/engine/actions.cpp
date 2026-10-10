@@ -2,6 +2,7 @@
 #include <unordered_set>
 #include <windows.h>
 #include <shellapi.h>
+#include <shobjidl.h>
 
 #include <algorithm>
 #include <cctype>
@@ -129,15 +130,70 @@ bool is_shell_leaf(const std::string& leaf) {
       "bash.exe",    "sh.exe",         "wt.exe",      "conhost.exe",        "forfiles.exe",  "msbuild.exe",  "msiexec.exe",   "schtasks.exe", "certutil.exe", "installutil.exe",
       "regasm.exe",  "regsvcs.exe",    "cmstp.exe",   "bitsadmin.exe",      "wmic.exe",      "pcalua.exe",   "msdt.exe",      "mmc.exe",      "at.exe",       "ssh.exe",
       "python.exe",  "pythonw.exe",    "py.exe",      "node.exe",           "deno.exe",      "bun.exe",      "java.exe",      "javaw.exe",    "perl.exe",     "ruby.exe",
-      "php.exe",     "lua.exe",        "busybox.exe", "git-bash.exe"};
+      "php.exe",     "lua.exe",        "busybox.exe", "git-bash.exe",
+      // 终端外壳、能顺带执行命令的系统自带工具、命令行 AI 代理
+      "windowsterminal.exe", "openconsole.exe", "pwsh-preview.exe", "ftp.exe",      "scp.exe",      "sftp.exe",     "reg.exe",       "regedit.exe",  "mavinject.exe",
+      "odbcconf.exe",        "control.exe",     "hh.exe",           "scriptrunner.exe", "syncappvpublishingserver.exe", "presentationhost.exe", "infdefaultinstall.exe",
+      "xwizard.exe",         "ieexec.exe",      "runscripthelper.exe", "dotnet.exe",    "git.exe",      "net.exe",       "net1.exe",     "sc.exe",       "netsh.exe",
+      "claude.exe",          "codex.exe",       "gemini.exe",       "opencode.exe",   "aider.exe"};
   if (kHosts.count(leaf)) return true;
+  // WSL 发行版的启动器（ubuntu.exe、ubuntu2204.exe、debian.exe、kali.exe …）就是一个 Linux shell。
+  for (const char* pre : {"ubuntu", "debian", "kali", "opensuse", "sles-"}) {
+    const size_t n = std::char_traits<char>::length(pre);
+    if (leaf.size() >= n + 4 && leaf.compare(0, n, pre) == 0 && leaf.compare(leaf.size() - 4, 4, ".exe") == 0) return true;
+  }
   static const char* kExt[] = {".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".reg", ".com", ".scr", ".pif",
-                               ".url", ".msc", ".msi", ".cpl", ".sct", ".wsc", ".jar", ".application", ".appref-ms"};
+                               ".url", ".msc", ".msi", ".cpl", ".sct", ".wsc", ".jar", ".application", ".appref-ms",
+                               ".py", ".pyw", ".pyz", ".rb", ".pl", ".php", ".lua", ".sh", ".ahk", ".au3", ".jnlp", ".xll", ".wll", ".msp", ".msu", ".chm",
+                               ".gadget", ".settingcontent-ms"};
   for (const char* ext : kExt) {
     const size_t n = std::char_traits<char>::length(ext);
     if (leaf.size() >= n && leaf.compare(leaf.size() - n, n, ext) == 0) return true;
   }
   return false;
+}
+
+// 参数里带这些开关的程序会替用户把任意命令当子进程拉起来（Chromium / Electron 的调试与启动器开关）：按命令行外壳处理。
+bool has_exec_flag(const std::string& args) {
+  if (args.size() < 12) return false;
+  const std::string a = text::lower(args);
+  for (const char* f : {"--renderer-cmd-prefix", "--gpu-launcher", "--utility-cmd-prefix", "--zygote-cmd-prefix", "--ppapi-plugin-launcher", "--plugin-launcher",
+                        "--nacl-gdb", "--browser-subprocess-path"})
+    if (a.find(f) != std::string::npos) return true;
+  return false;
+}
+
+// ShellExecute 不会替我们展开 %VAR%，但模型常常这样写路径：展开之后再判断，判断的就是真正被执行的那个文件。
+std::string expand_env(const std::string& s) {
+  if (s.find('%') == std::string::npos) return s;
+  const std::wstring w = text::widen(s);
+  wchar_t buf[4096];
+  const DWORD n = ExpandEnvironmentStringsW(w.c_str(), buf, static_cast<DWORD>(std::size(buf)));
+  if (!n || n > std::size(buf)) return s;
+  return text::narrow(std::wstring_view(buf, n - 1));
+}
+
+// 解析 .lnk 快捷方式的目标与参数：开始菜单里的 “Windows PowerShell.lnk” 就是一个现成的命令行外壳，
+// 只看快捷方式文件名等于绕过护栏。解析不出（商店应用的快捷方式等）返回 false。
+bool resolve_lnk(const std::wstring& lnk, std::string& target, std::string& args) {
+  com_init_thread();
+  IShellLinkW* sl = nullptr;
+  if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_IShellLinkW, reinterpret_cast<void**>(&sl))) || !sl) return false;
+  bool ok = false;
+  IPersistFile* pf = nullptr;
+  if (SUCCEEDED(sl->QueryInterface(IID_IPersistFile, reinterpret_cast<void**>(&pf))) && pf) {
+    if (SUCCEEDED(pf->Load(lnk.c_str(), STGM_READ))) {
+      wchar_t p[2 * MAX_PATH]{}, a[4096]{};
+      if (SUCCEEDED(sl->GetPath(p, static_cast<int>(std::size(p)), nullptr, SLGP_RAWPATH)) && p[0]) {
+        target = expand_env(text::narrow(p));
+        if (SUCCEEDED(sl->GetArguments(a, static_cast<int>(std::size(a))))) args = text::narrow(a);
+        ok = true;
+      }
+    }
+    pf->Release();
+  }
+  sl->Release();
+  return ok;
 }
 
 bool is_own_leaf(const std::string& leaf, const std::wstring& full) {
@@ -158,7 +214,7 @@ struct LaunchInfo {
   bool link{false};   // http / https / mailto / ms-settings 这类链接
 };
 
-LaunchInfo judge_launch(const std::string& path, const std::string& args) {
+LaunchInfo judge_launch(const std::string& path, const std::string& args, int depth = 0) {
   LaunchInfo li;
   bool unknown = false;
   li.leaf = launch_leaf(path, li.full, unknown);
@@ -175,21 +231,28 @@ LaunchInfo judge_launch(const std::string& path, const std::string& args) {
     li.kind = LaunchKind::Own;
     return li;
   }
-  if (is_shell_leaf(leaf)) {
+  if (is_shell_leaf(leaf) || has_exec_flag(args)) {
     li.kind = LaunchKind::Shell;
     return li;
   }
+  // 快捷方式按它指向的目标与参数来判断（最多跟三层，防止快捷方式互相指向）。
+  if (leaf.size() > 4 && leaf.compare(leaf.size() - 4, 4, ".lnk") == 0) {
+    if (depth >= 3) {
+      li.kind = LaunchKind::Shell;
+      return li;
+    }
+    std::string target, targs;
+    if (resolve_lnk(li.full, target, targs)) {
+      const LaunchInfo t = judge_launch(target, targs + " " + args, depth + 1);
+      if (t.kind != LaunchKind::Plain) li.kind = t.kind;
+    }
+    return li;
+  }
   // 资源管理器能把参数当程序去打开：参数里点名的程序也按同一套规则看。
-  if (leaf == "explorer.exe" && !args.empty()) {
+  if (leaf == "explorer.exe" && !args.empty() && depth < 3) {
     auto check = [&](const std::string& t) {
       if (t.empty()) return LaunchKind::Plain;
-      std::wstring f2;
-      bool unk = false;
-      const std::string l2 = launch_leaf(t, f2, unk);
-      if (unk) return LaunchKind::Shell;
-      if (!l2.empty() && is_own_leaf(l2, f2)) return LaunchKind::Own;
-      if (!l2.empty() && is_shell_leaf(l2)) return LaunchKind::Shell;
-      return LaunchKind::Plain;
+      return judge_launch(t, std::string(), depth + 1).kind;
     };
     std::string cur;
     LaunchKind worst = LaunchKind::Plain;
@@ -342,9 +405,22 @@ Res<Json> Engine::a_type(const Json& p) {
   // 把输入焦点放到目标上：有控件就 UI Automation 聚焦，只有坐标就发一次后台点击。
   // UI Automation 的 SetFocus 会把目标窗口抬成系统前台，等于抢走用户正在输入的焦点；后台通道（消息 / 直接设值）本来就不需要焦点，
   // 所以只在目标本来就是前台窗口时才设，绝不为了设焦点去激活别人的窗口。
-  if (p["focus"].as_bool(true) && have_pt && !fg && GetForegroundWindow() == GetAncestor(top, GA_ROOT)) {
+  const bool is_front = GetForegroundWindow() == GetAncestor(top, GA_ROOT);
+  if (p["focus"].as_bool(true) && have_pt && !fg && is_front) {
     if (pr.node >= 0) (void)svc.focus(pr.snap->nodes[static_cast<size_t>(pr.node)]);
     else (void)input::msg_click(top, pr.px, input::Button::Left, 1);
+  }
+  // Chromium 系窗口（Edge、Electron：ChatGPT 等）里，网页编辑器只有拿到 DOM 焦点才收键盘，窗口在后台时没人替我们设焦点：
+  // 在元素上发一次后台点击（消息通道：不激活窗口、不动光标）。已经有焦点就不动，免得挪走用户放好的插入点；
+  // 刚点过的话把插入点移到末尾，保持“追加”的语义。
+  bool web_clicked = false;
+  if (p["focus"].as_bool(true) && have_pt && !fg && !is_front && input::chromium_top(top)) {
+    const bool has = pr.node >= 0 && svc.has_focus(pr.snap->nodes[static_cast<size_t>(pr.node)]);
+    if (!has) {
+      input::FocusShield shield(top, true);
+      web_clicked = input::msg_click(top, pr.px, input::Button::Left, 1).has_value();
+      sleep_us(25000);
+    }
   }
 
   store::Inverse inv;
@@ -382,7 +458,10 @@ Res<Json> Engine::a_type(const Json& p) {
     else if (have_pt) dest = win::deepest_child_at(top, pr.px);
     else dest = input::focus_hwnd(top);
     if (!dest || !IsWindow(dest)) dest = top;
+    // Chromium 的键盘消息只认顶层窗口：UIA 元素没有自己的窗口句柄，命中的子窗口（Intermediate D3D Window）会把字符丢掉。
+    if (HWND cr = input::chromium_top(dest)) dest = cr;
     if (replace) (void)input::msg_chord_attached(dest, *input::parse_chord("ctrl+a"));
+    else if (web_clicked) (void)input::msg_chord_attached(dest, *input::parse_chord("ctrl+end"));
     auto r = input::msg_text(dest, wtxt, true);
     if (r) {
       inv.kind = replace ? "none" : "backspace";
@@ -412,7 +491,10 @@ Res<Json> Engine::a_type(const Json& p) {
                       }});
     ladder.push_back({"uia_set", uia_set});
   } else if (replace) {
-    ladder.push_back({"uia_set", uia_set});
+    // Chromium 网页里 UIA 的 SetValue 写进 contenteditable 时不触发 input 事件（React / ProseMirror 的状态就和页面对不上）：
+    // 在 Chromium 里先走真正的击键通道（全选 + 输入），SetValue 退为兜底。
+    const bool web = input::chromium_top(top) != nullptr;
+    ladder.push_back({"uia_set", uia_set, web});
     ladder.push_back({"msg_char", msg_text});
     if (st.allow_hop) ladder.push_back({"hop", hop_text, true});
   } else {
@@ -454,9 +536,13 @@ Res<Json> Engine::a_set_value(const Json& p) {
                       if (pr.node < 0) return fail(E_NOT_FOUND, "no UI Automation element at the point");
                       const auto& n = pr.snap->nodes[static_cast<size_t>(pr.node)];
                       if (numeric && (n.patterns & uia::P_RANGE)) {
+                        // 滑块：先记下原值，才能撤销（以前这里写成不可撤销，与 “set_value … Undoable” 的说明不符）。
+                        const auto before = svc.get_range(n);
                         auto r = svc.set_range(n, p["value"].as_num());
-                        if (r) {
-                          inv.kind = "none";
+                        if (r && before) {
+                          inv.kind = "set_range";
+                          inv.data = selector_of(n, t.hwnd);
+                          inv.data.set("prev", *before);
                         }
                         return r;
                       }
@@ -686,6 +772,8 @@ Res<Json> Engine::a_window(const Json& p) {
   if (!tr) return std::unexpected(tr.error());
   Target t = *tr;
   if (t.screen) return fail(E_BAD_ARG, "window ops need a window");
+  // 关闭 / 最小化 / 挪动 Deixion 自己的窗口同样是用户专属的控制（关窗口在“关闭即退出”时会直接停掉引擎）。
+  if (is_own(t.pid, t.app)) return fail(E_DENIED, kSelfMsg);
   std::lock_guard act(act_mu_);
   const bool fg = fg_mode(st, p);
   Stopwatch sw;
@@ -768,7 +856,8 @@ Res<Json> Engine::a_window(const Json& p) {
 Res<Json> Engine::a_launch(const Json& p) {
   const Settings st = SettingsStore::get().snapshot();
   if (auto g = gate(st); !g) return std::unexpected(g.error());
-  const std::string path = p["path"].as_str();
+  // %VAR% 先展开再判断：判断的与最终交给系统执行的是同一个字符串。
+  const std::string path = expand_env(p["path"].as_str());
   if (path.empty()) return fail(E_BAD_ARG, "path is required (an exe, document, or URL)");
   const LaunchInfo li = judge_launch(path, p["args"].as_str());
   if (li.kind == LaunchKind::Own) return fail(E_DENIED, "launch cannot start Deixion's own programs");
@@ -783,13 +872,25 @@ Res<Json> Engine::a_launch(const Json& p) {
   const bool fg = fg_mode(st, p);
   SHELLEXECUTEINFOW sei{sizeof sei};
   const std::wstring wp = text::widen(path), wa = text::widen(p["args"].as_str()), wd = text::widen(p["cwd"].as_str());
-  sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
+  // NO_UI：找不到文件时系统默认会弹一个模态错误框并一直等人点掉（实测对不存在的路径要卡 40 多秒才返回 1223），
+  // 既会把用户的焦点抢走，也会把引擎线程拖死；这里只要错误码。
+  sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
   sei.lpFile = wp.c_str();
   sei.lpParameters = wa.empty() ? nullptr : wa.c_str();
   sei.lpDirectory = wd.empty() ? nullptr : wd.c_str();
   sei.nShow = fg ? SW_SHOWNORMAL : SW_SHOWNOACTIVATE;
   Stopwatch sw;
-  if (!ShellExecuteExW(&sei)) return fail(E_WIN32, "launch failed (error " + std::to_string(GetLastError()) + ")");
+  if (!ShellExecuteExW(&sei)) {
+    const DWORD e = GetLastError();
+    if (e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND || sei.hInstApp == reinterpret_cast<HINSTANCE>(static_cast<INT_PTR>(SE_ERR_FNF)) ||
+        sei.hInstApp == reinterpret_cast<HINSTANCE>(static_cast<INT_PTR>(SE_ERR_PNF)))
+      return fail(E_NOT_FOUND, "launch failed: file or program not found: " + path);
+    if (e == ERROR_NO_ASSOCIATION || sei.hInstApp == reinterpret_cast<HINSTANCE>(static_cast<INT_PTR>(SE_ERR_NOASSOC)))
+      return fail(E_UNSUPPORTED, "launch failed: no program is associated with this file type");
+    if (e == ERROR_ACCESS_DENIED || e == ERROR_CANCELLED || e == ERROR_ELEVATION_REQUIRED)
+      return fail(E_DENIED, "launch failed: access denied or elevation required (error " + std::to_string(e) + ")");
+    return fail(E_WIN32, "launch failed (error " + std::to_string(e) + ")");
+  }
   u32 pid = sei.hProcess ? GetProcessId(sei.hProcess) : 0;
   if (sei.hProcess) {
     WaitForInputIdle(sei.hProcess, static_cast<DWORD>(std::clamp<i64>(p["idle_ms"].as_int(1500), 0, 15000)));
@@ -914,7 +1015,7 @@ Res<Json> Engine::a_rollback(const Json& p) {
     const Json& d = e.inv.data;
     if (e.undone) {
       r = fail(E_BAD_ARG, "already rolled back");
-    } else if (e.inv.kind == "set_value" || e.inv.kind == "toggle") {
+    } else if (e.inv.kind == "set_value" || e.inv.kind == "toggle" || e.inv.kind == "set_range") {
       auto sel = resolve_selector(d, 100);
       if (!sel) {
         r = std::unexpected(sel.error());
@@ -922,7 +1023,9 @@ Res<Json> Engine::a_rollback(const Json& p) {
         const auto& n = sel->first->nodes[static_cast<size_t>(sel->second)];
         auto win_h = win::resolve(d["hwnd"].as_str().empty() ? std::string("active") : "hwnd:" + d["hwnd"].as_str());
         input::FocusShield shield(win_h ? *win_h : nullptr, !st.foreground());
-        r = e.inv.kind == "toggle" ? toggle_node(n) : set_text(n, text::widen(d["prev"].as_str()));
+        if (e.inv.kind == "toggle") r = toggle_node(n);
+        else if (e.inv.kind == "set_range") r = uia::Service::get().set_range(n, d["prev"].as_num());
+        else r = set_text(n, text::widen(d["prev"].as_str()));
       }
     } else if (e.inv.kind == "window_rect") {
       auto h = win::resolve("hwnd:" + d["hwnd"].as_str());
@@ -933,8 +1036,19 @@ Res<Json> Engine::a_rollback(const Json& p) {
       if (!h) {
         r = std::unexpected(h.error());
       } else {
+        // 与 window 动作一致：后台模式下持有前台锁，状态真的变了之后再放开（有的程序恢复 / 最大化时会自己激活）。
         const std::string s = d["state"].as_str();
+        const bool bg = !st.foreground();
+        input::FocusShield shield(*h, bg);
         ShowWindowAsync(*h, s == "minimized" ? SW_SHOWMINNOACTIVE : s == "maximized" ? SW_MAXIMIZE : SW_SHOWNOACTIVATE);
+        if (bg) {
+          for (int i = 0; i < 80; ++i) {
+            const bool done = s == "minimized" ? IsIconic(*h) != 0 : s == "maximized" ? IsZoomed(*h) != 0 : (!IsIconic(*h) && !IsZoomed(*h));
+            if (done) break;
+            Sleep(5);
+          }
+          Sleep(40);
+        }
         r = {};
       }
     } else if (e.inv.kind == "backspace") {

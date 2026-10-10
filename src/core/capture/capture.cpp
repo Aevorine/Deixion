@@ -53,13 +53,14 @@ Image::~Image() {
   if (bmp_) DeleteObject(bmp_);
 }
 
+// PrintWindow 渲染不了的窗口会交回一张全 0 的位图。稀疏抽样会把“深色背景、只有几行小字”的窗口误判成空白，
+// 进而拒绝后台截图；遇到第一个非零像素就返回，所以整图扫描只在真正空白时才付出代价。
 bool looks_blank(const Image& im) {
-  const int step = std::max(1, std::min(im.w, im.h) / 12);
-  for (int y = 0; y < im.h; y += step)
-    for (int x = 0; x < im.w; x += step) {
-      const u8* p = im.bits + static_cast<size_t>(y) * im.stride() + static_cast<size_t>(x) * 4;
-      if (p[0] | p[1] | p[2]) return false;
-    }
+  for (int y = 0; y < im.h; ++y) {
+    const u8* row = im.bits + static_cast<size_t>(y) * im.stride();
+    for (int x = 0; x < im.w; ++x, row += 4)
+      if (row[0] | row[1] | row[2]) return false;
+  }
   return true;
 }
 

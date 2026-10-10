@@ -136,6 +136,8 @@ else {
     ['click', { window: 'exe:Deixion.exe', find: { text: '设置', role: 'Button' } }],
     ['type', { window: 'exe:Deixion.exe', text: 'x' }],
     ['key', { window: 'exe:Deixion.exe', keys: 'enter' }],
+    ['window_op', { window: 'exe:Deixion.exe', op: 'minimize' }], // 窗口操作也是对自己窗口的输入：不能把自己的界面最小化 / 关掉
+    ['window_op', { window: 'exe:Deixion.exe', op: 'close' }],
   ]) {
     const r = await call(name, args);
     check(`input action '${name}' on Deixion's own window is refused`, r.isError && /own windows/.test(r.text), r.text.slice(0, 90));

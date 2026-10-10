@@ -320,14 +320,20 @@ There are only two third-party components: the WebView2 SDK and KaTeX. Their lic
 - Install, upgrade over locked files, rejection and rollback of a damaged package, and self-deleting uninstall were verified end to end. **The automatic WebView2 download needs a network and a machine without the runtime, and was not exercised**; shortcut creation was exercised through the UI flow but the `.lnk` contents were not checked item by item.
 - Background mode does not work with every program, for example programs that ignore window messages or do not expose UI Automation patterns. A failure returns its reason, and you can retarget or enable `allow_hop`. Whether games (programs that draw their own UI or take exclusive input) work is to be confirmed.
 - State changes on minimized windows were measured only on a classic console window (restore / maximize / minimize); close / move / resize on a minimized window are allowed by the code path but not tested on their own. `undo` of a window state change does not take the foreground protection and was not tested.
-- Typing into a console: a newline (`\n`) in the text does not submit the command in Windows PowerShell inside conhost and leaves a stray character at the end of the line (measured on v1.0.5); use `key` with `enter` to submit a command.
+- Background typing into the web editors of Chromium-based windows (Edge, Electron) was measured on an Edge test page (`contenteditable` / `textarea` / `input`; ASCII, CJK, emoji and newlines; append and replace). ChatGPT desktop itself was not exercised in this release. A modal the browser raises on its own (for example the sign-in / sync prompt in a fresh profile) takes keyboard focus, and the page receives no keys while it is open.
 - The `launch` guard and the `batch` allow-list limit what a model can do through the MCP tools; they are guard rails, not a sandbox. Another program of the same Windows user (including a shell the model can run itself) can talk to the named pipe or edit `settings.json` directly, and Deixion cannot defend against that. A program the model is allowed to start can itself start a shell.
 - On power loss, a few of the most recent records may be lost. On a crash, up to 11 experience-store updates may not yet be on disk.
 - Logging is asynchronous. If the process crashes, log lines still in the queue (up to about 500 ms) may be lost.
 - The page list follows the code: there are 10 pages (Overview, Locate, Elements, Actions, Experience, Logs, Performance, Claude Code, Guide, Settings).
 
-## Update: 1.0.6
+## Update: 1.0.7
+
+Background typing into the web editors of Chromium-based windows (Edge, Electron): keyboard messages go to the top-level window, a background click gives the page its focus first, Enter / Tab / Space are sent as real key events, and replace is select-all plus typing. The Chromium accessibility tree is built asynchronously, so the first query waits briefly for the web document and `find` retries for up to 1.5 s. A newline typed into a console now commits the command.
+
+`launch` of a missing file returns `not_found` at once (it used to raise a modal error box that held the call for about two minutes); the guard resolves `.lnk` and `%VAR%` and recognizes more script hosts, terminals and Chromium command-prefix flags. Fixed a crash when the updater was still running at exit, and tightened the named pipe, WebView navigation, the update re-hash, the WebView2 bootstrapper lock and the npm launcher. Slider `set_value` is now undoable. See the [CHANGELOG](CHANGELOG.md).
+
+## 1.0.6
 
 Settings → Screenshots and logs → Model screenshot policy defaults to a screenshot before each action, with adaptive and on-demand options. The Claude skill reads `status.capture_policy`; this guides the model and does not prove image comprehension.
 
-Fixed verified-update state loss, unrelated pixels in occluded-window capture, window-caption writes on unsupported web editors, and input on minimized windows. See the [control roadmap](docs/CONTROL-ROADMAP.md) for channel tradeoffs and proposed improvements. ChatGPT desktop background input remains incomplete; the PowerShell→Codex CLI weather example produced a result.
+Fixed verified-update state loss, unrelated pixels in occluded-window capture, window-caption writes on unsupported web editors, and input on minimized windows. See the [control roadmap](docs/CONTROL-ROADMAP.md) for channel tradeoffs and proposed improvements.

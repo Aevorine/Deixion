@@ -32,6 +32,7 @@ DX_IID(ICoreWebView2Settings6, "11cb3acd-9bc8-43b8-83bf-f40753714f87")
 DX_IID(ICoreWebView2WebMessageReceivedEventHandler, "57213f19-00e6-49fa-8e07-898ea01ecbd2")
 DX_IID(ICoreWebView2WebResourceRequestedEventHandler, "ab00b74c-15f1-4646-80e8-e76341d25d71")
 DX_IID(ICoreWebView2NavigationCompletedEventHandler, "d33a35bf-1c49-4f98-93ab-006e0533fe1c")
+DX_IID(ICoreWebView2NavigationStartingEventHandler, "9adbe429-f36d-432b-9ddc-f8881fbd76e3")
 DX_IID(ICoreWebView2NewWindowRequestedEventHandler, "d4c185fe-c81c-4989-97af-2d3fa7ab5651")
 DX_IID(ICoreWebView2PermissionRequestedEventHandler, "15e1c6a3-c72a-4df3-91d7-d097fbec6bfd")
 DX_IID(ICoreWebView2CreateCoreWebView2ControllerCompletedHandler, "6c4819f3-c9b7-4260-8127-c9f5bde7f68c")
@@ -80,6 +81,10 @@ std::string utf8_from_pwstr(PWSTR w) {
 }
 
 std::wstring dll_path() { return (paths::exe_dir() / L"WebView2Loader.dll").wstring(); }
+
+// 界面只允许停留在自己的虚拟主机上：网页桥（window.chrome.webview）能调用全部引擎方法，一旦页面被导航到别的站点，
+// 那个站点就拿到了点击、启动程序、改设置的能力。
+bool is_app_origin(const std::string& u) { return u == "https://app.deixion" || u.starts_with("https://app.deixion/"); }
 }  // namespace
 
 bool WebView::runtime_installed(std::string* version) {
@@ -104,6 +109,7 @@ void WebView::close() {
     if (tok_msg_.value) view_->remove_WebMessageReceived(tok_msg_);
     if (tok_res_.value) view_->remove_WebResourceRequested(tok_res_);
     if (tok_nav_.value) view_->remove_NavigationCompleted(tok_nav_);
+    if (tok_navstart_.value) view_->remove_NavigationStarting(tok_navstart_);
     if (tok_win_.value) view_->remove_NewWindowRequested(tok_win_);
     if (tok_perm_.value) view_->remove_PermissionRequested(tok_perm_);
   }
@@ -156,6 +162,9 @@ void WebView::create(HWND host, const std::wstring& user_dir, std::function<void
       }
       view_->add_WebMessageReceived(make_cb<ICoreWebView2WebMessageReceivedEventHandler, ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs*>(
                                         [this](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* a) -> HRESULT {
+                                          // 只接受来自自己页面的消息（导航守卫之外的第二道防线）。
+                                          PWSTR src = nullptr;
+                                          if (FAILED(a->get_Source(&src)) || !is_app_origin(utf8_from_pwstr(src))) return S_OK;
                                           PWSTR w = nullptr;
                                           if (SUCCEEDED(a->get_WebMessageAsJson(&w)) && w) {
                                             const std::string s = utf8_from_pwstr(w);
@@ -164,6 +173,13 @@ void WebView::create(HWND host, const std::wstring& user_dir, std::function<void
                                           return S_OK;
                                         }),
                                     &tok_msg_);
+      view_->add_NavigationStarting(make_cb<ICoreWebView2NavigationStartingEventHandler, ICoreWebView2*, ICoreWebView2NavigationStartingEventArgs*>(
+                                        [](ICoreWebView2*, ICoreWebView2NavigationStartingEventArgs* a) -> HRESULT {
+                                          PWSTR uri = nullptr;
+                                          if (FAILED(a->get_Uri(&uri)) || !is_app_origin(utf8_from_pwstr(uri))) a->put_Cancel(TRUE);
+                                          return S_OK;
+                                        }),
+                                    &tok_navstart_);
       view_->AddWebResourceRequestedFilter(L"https://app.deixion/*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
       view_->add_WebResourceRequested(make_cb<ICoreWebView2WebResourceRequestedEventHandler, ICoreWebView2*, ICoreWebView2WebResourceRequestedEventArgs*>(
                                           [this](ICoreWebView2*, ICoreWebView2WebResourceRequestedEventArgs* a) -> HRESULT {

@@ -52,6 +52,6 @@ On 2026-10-09 a hidden classic PowerShell console received a Codex CLI weather q
 
 2026-10-09 已通过 Deixion 的 `type` 与 `key enter`，在指定工作目录的隐藏 PowerShell 控制台执行 Codex CLI 天气查询并取得带来源结果。该控制台不支持后台截图，此时通过 CLI 输出验收，不能把覆盖窗口截图充作控制台截图。
 
-ChatGPT desktop screenshot and accessibility targeting worked on the same machine, but background text input did not reach its web editor. This example remains incomplete; a delivered message is not accepted as proof. Games, protected applications, elevated windows and apps without automation providers may require foreground mode or isolation.
+ChatGPT desktop screenshot and accessibility targeting worked on the same machine, but background text input did not reach its web editor in 1.0.6. Version 1.0.7 changes the Chromium input path (top-level keyboard messages, a background focus click, real Enter / Tab / Space) and it works on an Edge test page; ChatGPT desktop itself has not been re-run, so this example stays open until it is. A delivered message is not accepted as proof. Games, protected applications, elevated windows and apps without automation providers may require foreground mode or isolation.
 
-同机 ChatGPT 桌面版截图与可访问性定位可用，后台文字输入未进入网页编辑器，因此该示例尚未完成。游戏、受保护应用、提权窗口和缺少自动化接口的应用可能需要前台模式或隔离环境。
+同机 ChatGPT 桌面版截图与可访问性定位可用，1.0.6 的后台文字输入未进入网页编辑器；1.0.7 改了 Chromium 输入路径（键盘消息发顶层窗口、后台点击取得页面焦点、回车 / 制表 / 空格按真实按键），在 Edge 测试页上已通过，但 ChatGPT 桌面版本身还没重跑，因此该示例仍未完成。游戏、受保护应用、提权窗口和缺少自动化接口的应用可能需要前台模式或隔离环境。

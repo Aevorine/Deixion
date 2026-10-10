@@ -3,6 +3,7 @@
 #include <shlobj.h>
 #include <windows.h>
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 
@@ -64,16 +65,44 @@ Res<std::string> run(const std::wstring& cmdline) {
     CloseHandle(rd);
     return fail(E_WIN32, "cannot start the command");
   }
+  // 以前先 ReadFile 读到管道关闭、再等 30 秒：命令一旦卡住，读就永远不返回，超时形同虚设，
+  // 界面的 4 个工作线程被这样占满以后整个原生桥都不再响应。改成带期限轮询，到点就结束该进程。
   std::string out;
   char buf[4096];
-  DWORD n = 0;
-  while (ReadFile(rd, buf, sizeof buf, &n, nullptr) && n) out.append(buf, n);
+  const ULONGLONG deadline = GetTickCount64() + 30000;
+  bool timed_out = false;
+  for (;;) {
+    DWORD avail = 0;
+    if (!PeekNamedPipe(rd, nullptr, 0, nullptr, &avail, nullptr)) break;  // 写端已关：命令结束
+    if (avail) {
+      DWORD n = 0;
+      if (!ReadFile(rd, buf, static_cast<DWORD>(std::min<size_t>(sizeof buf, avail)), &n, nullptr) || !n) break;
+      out.append(buf, n);
+      continue;
+    }
+    if (WaitForSingleObject(pi.hProcess, 25) == WAIT_OBJECT_0) {
+      // 进程已结束：把管道里剩下的读完再退出
+      DWORD left = 0;
+      while (PeekNamedPipe(rd, nullptr, 0, nullptr, &left, nullptr) && left) {
+        DWORD n = 0;
+        if (!ReadFile(rd, buf, static_cast<DWORD>(std::min<size_t>(sizeof buf, left)), &n, nullptr) || !n) break;
+        out.append(buf, n);
+      }
+      break;
+    }
+    if (GetTickCount64() >= deadline) {
+      timed_out = true;
+      TerminateProcess(pi.hProcess, 1);
+      break;
+    }
+  }
   CloseHandle(rd);
-  WaitForSingleObject(pi.hProcess, 30000);
+  WaitForSingleObject(pi.hProcess, 3000);
   DWORD code = 1;
   GetExitCodeProcess(pi.hProcess, &code);
   CloseHandle(pi.hThread);
   CloseHandle(pi.hProcess);
+  if (timed_out) return fail(E_TIMEOUT, "the command did not finish within 30 seconds and was stopped");
   if (code != 0) return fail(E_INTERNAL, out.empty() ? "command failed" : out);
   return out;
 }
@@ -128,6 +157,7 @@ bool skip_for_tests() { return GetEnvironmentVariableW(L"DEIXION_NO_CLAUDE", nul
 Res<Json> install() {
   Json out = Json::object();
   if (skip_for_tests()) return out.set("skill", "skipped").set("mcp", "skipped");
+  if (home().empty()) return fail(E_NOT_FOUND, "cannot locate your user folder");
   if (fs::exists(skill_src() / L"SKILL.md")) {
     if (!copy_tree(skill_src(), skill_dst())) return fail(E_IO, "cannot copy the skill into ~/.claude/skills");
     out.set("skill", "installed");
@@ -157,8 +187,11 @@ Res<Json> remove() {
     auto r = run(L"cmd.exe /d /s /c \"\"" + cc.wstring() + L"\" mcp remove deixion --scope user\"");
     out.set("mcp", r ? "removed" : "not registered");
   }
-  std::error_code ec;
-  fs::remove_all(skill_dst(), ec);
+  // 取不到用户目录时 skill_dst() 是个相对路径，对它 remove_all 会按当前目录去删：这种情况什么都不动。
+  if (!home().empty()) {
+    std::error_code ec;
+    fs::remove_all(skill_dst(), ec);
+  }
   out.set("skill", "removed");
   return out;
 }

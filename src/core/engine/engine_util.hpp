@@ -1,4 +1,5 @@
 #pragma once
+#include <cmath>
 #include <cstdio>
 #include <string>
 
@@ -15,28 +16,29 @@ inline std::string hwnd_str(HWND h) {
   return b;
 }
 
+// 坐标必须是有限数：stod 会接受 "nan" / "inf"，NaN 一路传下去会被当成 (0,0) 点下去。
 inline bool parse_ll(const Json& j, geo::LatLon& out) {
+  geo::LatLon v{};
   if (j.is_str()) {
     const std::string& s = j.as_str();
     const size_t c = s.find(',');
     if (c == std::string::npos) return false;
     try {
-      out.lam = std::stod(s.substr(0, c));
-      out.phi = std::stod(s.substr(c + 1));
+      v.lam = std::stod(s.substr(0, c));
+      v.phi = std::stod(s.substr(c + 1));
     } catch (...) {
       return false;
     }
-    return true;
+  } else if (j.is_arr() && j.size() == 2 && j[0].is_num() && j[1].is_num()) {
+    v = {j[0].as_num(), j[1].as_num()};
+  } else if (j.is_obj() && j.has("lam") && j.has("phi")) {
+    v = {j["lam"].as_num(), j["phi"].as_num()};
+  } else {
+    return false;
   }
-  if (j.is_arr() && j.size() == 2 && j[0].is_num() && j[1].is_num()) {
-    out = {j[0].as_num(), j[1].as_num()};
-    return true;
-  }
-  if (j.is_obj() && j.has("lam") && j.has("phi")) {
-    out = {j["lam"].as_num(), j["phi"].as_num()};
-    return true;
-  }
-  return false;
+  if (!std::isfinite(v.lam) || !std::isfinite(v.phi)) return false;
+  out = v;
+  return true;
 }
 
 inline bool parse_xy(const Json& j, geo::PointI& out) {

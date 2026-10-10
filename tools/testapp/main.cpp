@@ -1,11 +1,12 @@
 // 仅用于端到端验证的目标窗口：按钮、勾选框、单行/多行文本框；每次变化把状态写进 state 文件，供脚本核对。
 #include <windows.h>
+#include <commctrl.h>
 
 #include <cstdio>
 #include <string>
 
 namespace {
-HWND g_edit, g_btn, g_check, g_multi, g_label;
+HWND g_edit, g_btn, g_check, g_multi, g_label, g_slider;
 int g_count = 0;
 int g_lx = -1, g_ly = -1;
 std::wstring g_state_path;
@@ -37,8 +38,9 @@ std::wstring text_of(HWND h) {
 }
 void save() {
   char buf[4096];
-  std::snprintf(buf, sizeof buf, "{\"count\":%d,\"edit\":\"%s\",\"multi\":\"%s\",\"check\":%d,\"lx\":%d,\"ly\":%d}", g_count, esc(utf8(text_of(g_edit))).c_str(),
-                esc(utf8(text_of(g_multi))).c_str(), static_cast<int>(SendMessageW(g_check, BM_GETCHECK, 0, 0)), g_lx, g_ly);
+  std::snprintf(buf, sizeof buf, "{\"count\":%d,\"edit\":\"%s\",\"multi\":\"%s\",\"check\":%d,\"slider\":%d,\"lx\":%d,\"ly\":%d}", g_count, esc(utf8(text_of(g_edit))).c_str(),
+                esc(utf8(text_of(g_multi))).c_str(), static_cast<int>(SendMessageW(g_check, BM_GETCHECK, 0, 0)),
+                static_cast<int>(SendMessageW(g_slider, TBM_GETPOS, 0, 0)), g_lx, g_ly);
   const std::wstring tmp = g_state_path + L".tmp";
   HANDLE h = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (h == INVALID_HANDLE_VALUE) return;
@@ -57,6 +59,9 @@ LRESULT CALLBACK proc(HWND h, UINT m, WPARAM w, LPARAM l) {
       g_label = CreateWindowExW(0, L"STATIC", L"clicked: 0", WS_CHILD | WS_VISIBLE, 180, 74, 200, 24, h, reinterpret_cast<HMENU>(103), hi, nullptr);
       g_check = CreateWindowExW(0, L"BUTTON", L"Option", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 118, 140, 28, h, reinterpret_cast<HMENU>(104), hi, nullptr);
       g_multi = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL, 20, 160, 360, 120, h, reinterpret_cast<HMENU>(105), hi, nullptr);
+      g_slider = CreateWindowExW(0, TRACKBAR_CLASSW, L"Level", WS_CHILD | WS_VISIBLE | TBS_HORZ | TBS_AUTOTICKS, 20, 290, 360, 32, h, reinterpret_cast<HMENU>(106), hi, nullptr);
+      SendMessageW(g_slider, TBM_SETRANGE, TRUE, MAKELPARAM(0, 100));
+      SendMessageW(g_slider, TBM_SETPOS, TRUE, 25);
       HFONT f = CreateFontW(-18, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
       for (HWND c : {g_edit, g_btn, g_label, g_check, g_multi}) SendMessageW(c, WM_SETFONT, reinterpret_cast<WPARAM>(f), TRUE);
       return 0;
@@ -75,6 +80,9 @@ LRESULT CALLBACK proc(HWND h, UINT m, WPARAM w, LPARAM l) {
       }
       return 0;
     }
+    case WM_HSCROLL:
+      save();
+      return 0;
     case WM_LBUTTONDOWN:
       g_lx = LOWORD(l);
       g_ly = HIWORD(l);
@@ -90,6 +98,8 @@ LRESULT CALLBACK proc(HWND h, UINT m, WPARAM w, LPARAM l) {
 
 int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR cmd, int show) {
   SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+  INITCOMMONCONTROLSEX icc{sizeof icc, ICC_BAR_CLASSES};
+  InitCommonControlsEx(&icc);
   g_state_path = cmd && *cmd ? cmd : L"dx-testapp-state.json";
   while (!g_state_path.empty() && (g_state_path.front() == L'"' || g_state_path.front() == L' ')) g_state_path.erase(g_state_path.begin());
   while (!g_state_path.empty() && (g_state_path.back() == L'"' || g_state_path.back() == L' ')) g_state_path.pop_back();
@@ -100,7 +110,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR cmd, int show) {
   wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
   wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
   RegisterClassW(&wc);
-  HWND h = CreateWindowExW(0, wc.lpszClassName, L"DX Test Target", WS_OVERLAPPEDWINDOW, 300, 200, 420, 340, nullptr, nullptr, hi, nullptr);
+  HWND h = CreateWindowExW(0, wc.lpszClassName, L"DX Test Target", WS_OVERLAPPEDWINDOW, 300, 200, 420, 400, nullptr, nullptr, hi, nullptr);
   ShowWindow(h, SW_SHOWNOACTIVATE);
   save();
   MSG m;

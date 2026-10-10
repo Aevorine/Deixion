@@ -43,7 +43,7 @@ class WebView {
   ResourceFn on_resource_;
   std::function<void(bool)> on_nav_;
   std::function<void(bool, std::string)> ready_;
-  EventRegistrationToken tok_msg_{}, tok_res_{}, tok_nav_{}, tok_win_{}, tok_perm_{};
+  EventRegistrationToken tok_msg_{}, tok_res_{}, tok_nav_{}, tok_win_{}, tok_perm_{}, tok_navstart_{};
 };
 
 }  // namespace dx::app

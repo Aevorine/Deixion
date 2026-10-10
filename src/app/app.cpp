@@ -548,7 +548,14 @@ int App::run(HINSTANCE hi, bool start_hidden) {
           job = std::move(q_.front());
           q_.pop_front();
         }
-        job();
+        // 工作线程里逃出的异常会直接 std::terminate 整个应用：一个任务出错不该带走托盘与全部连接。
+        try {
+          job();
+        } catch (const std::exception& ex) {
+          LOGE("app", "background job failed: {}", ex.what());
+        } catch (...) {
+          LOGE("app", "background job failed");
+        }
       }
     });
 
@@ -584,6 +591,7 @@ int App::run(HINSTANCE hi, bool start_hidden) {
   eng::Engine::get().unsubscribe_actions(action_sub_);
   Log::get().unsubscribe(log_sub_);
   ipc_.stop();
+  Updater::get().shutdown();  // 汇合更新器的工作线程：否则静态析构时 std::thread 仍可汇合，进程以 0xc0000409 崩溃退出
   {
     std::lock_guard lk(q_mu_);
     pool_stop_ = true;

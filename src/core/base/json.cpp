@@ -226,11 +226,20 @@ struct Parser {
         case 'u': {
           u32 cp;
           if (!hex4(cp)) return false;
-          if (cp >= 0xD800 && cp < 0xDC00 && e - p >= 6 && p[0] == '\\' && p[1] == 'u') {
-            p += 2;
-            u32 lo;
-            if (!hex4(lo)) return false;
-            cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+          if (cp >= 0xD800 && cp < 0xDC00) {
+            // 高代理必须紧跟低代理才能合成一个码点；否则（孤立代理）换成 U+FFFD，别产出非法 UTF-8，也别让下标运算回绕。
+            const u32 hi = cp;
+            cp = 0xFFFD;
+            if (e - p >= 6 && p[0] == '\\' && p[1] == 'u') {
+              const char* save = p;
+              p += 2;
+              u32 lo;
+              if (!hex4(lo)) return false;
+              if (lo >= 0xDC00 && lo < 0xE000) cp = 0x10000 + ((hi - 0xD800) << 10) + (lo - 0xDC00);
+              else p = save;  // 后面的 \u 不是低代理，按普通转义重新解析
+            }
+          } else if (cp >= 0xDC00 && cp < 0xE000) {
+            cp = 0xFFFD;
           }
           put_utf8(out, cp);
           break;

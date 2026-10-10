@@ -82,6 +82,39 @@ int code_stale(HRESULT hr) {
              : E_COM;
 }
 
+bool is_chromium_window(HWND h) {
+  HWND root = GetAncestor(h, GA_ROOT);
+  if (!root) root = h;
+  wchar_t cls[64]{};
+  GetClassNameW(root, cls, 64);
+  return wcsncmp(cls, L"Chrome_WidgetWin_", 17) == 0;
+}
+
+// 数组里是否已有网页内容的根（RootWebArea 对应 Document 控件类型）。
+bool has_web_document(IUIAutomationElementArray* arr, int len) {
+  if (!arr) return false;
+  for (int i = 0; i < len; ++i) {
+    ComPtr<IUIAutomationElement> e;
+    if (FAILED(arr->GetElement(i, e.put())) || !e) continue;
+    CONTROLTYPEID ct = 0;
+    if (SUCCEEDED(e->get_CachedControlType(&ct)) && ct == UIA_DocumentControlTypeId) return true;
+  }
+  return false;
+}
+
+// 每个窗口 30 秒内最多做一次“等网页树建出来”的等待：真的没有网页内容的 Chromium 窗口（弹出菜单等）不会被反复拖慢。
+bool chromium_cold_wait_allowed(u64 key) {
+  static std::mutex mu;
+  static std::unordered_map<u64, u64> last;
+  const u64 now = now_ns() / 1000000;
+  std::lock_guard lk(mu);
+  auto it = last.find(key);
+  if (it != last.end() && now - it->second < 30000) return false;
+  if (last.size() > 64) last.clear();
+  last[key] = now;
+  return true;
+}
+
 template <class P>
 Res<ComPtr<P>> pattern_of(const Node& n, PATTERNID pid, REFIID iid, const char* what) {
   if (!n.el) return fail(E_STALE, "element is gone");
@@ -172,6 +205,21 @@ Res<std::shared_ptr<Snapshot>> Service::snapshot(HWND h, const SnapOpts& o) {
   if (FAILED(hr)) return fail(code_stale(hr), "UI Automation search failed " + hr_text(hr));
   int len = 0;
   if (arr) arr->get_Length(&len);
+
+  // Chromium 系窗口（Edge、Electron：ChatGPT 等）的网页内容树是在第一个辅助技术客户端出现之后才异步建出来的：
+  // 第一次查询只会看到浏览器外壳（一堆没有名字的 Pane），找不到任何网页元素。有 Document 节点才算建好；
+  // 没有的话短暂等一等再取（每个窗口只在冷启动时等一次，最多约 1.8 秒，没有网页内容的窗口不会反复被拖慢）。
+  if (is_chromium_window(h) && !has_web_document(arr.get(), len) && chromium_cold_wait_allowed(key)) {
+    for (int i = 0; i < 12 && !has_web_document(arr.get(), len); ++i) {
+      Sleep(150);
+      ComPtr<IUIAutomationElementArray> again;
+      if (SUCCEEDED(root->FindAllBuildCache(TreeScope_Descendants, o.include_offscreen ? cond_all_.get() : cond_onscreen_.get(), cr_.get(), again.put())) && again) {
+        arr = std::move(again);
+        len = 0;
+        arr->get_Length(&len);
+      }
+    }
+  }
 
   auto snap = std::make_shared<Snapshot>();
   snap->hwnd = key;
@@ -457,6 +505,10 @@ Res<void> Service::focus(const Node& n) {
   if (FAILED(hr)) return fail(code_stale(hr), "focus failed " + hr_text(hr));
   return {};
 }
+bool Service::has_focus(const Node& n) {
+  BOOL b = FALSE;
+  return n.el && SUCCEEDED(n.el->get_CurrentHasKeyboardFocus(&b)) && b;
+}
 Res<void> Service::scroll_into_view(const Node& n) {
   auto p = pattern_of<IUIAutomationScrollItemPattern>(n, UIA_ScrollItemPatternId, IID_IUIAutomationScrollItemPattern, "scroll item");
   if (!p) return std::unexpected(p.error());
@@ -485,6 +537,14 @@ Res<void> Service::set_range(const Node& n, double v) {
   const HRESULT hr = (*p)->SetValue(v);
   if (FAILED(hr)) return fail(code_stale(hr), "set range failed " + hr_text(hr));
   return {};
+}
+Res<double> Service::get_range(const Node& n) {
+  auto p = pattern_of<IUIAutomationRangeValuePattern>(n, UIA_RangeValuePatternId, IID_IUIAutomationRangeValuePattern, "range");
+  if (!p) return std::unexpected(p.error());
+  double v = 0;
+  const HRESULT hr = (*p)->get_CurrentValue(&v);
+  if (FAILED(hr)) return fail(code_stale(hr), "read range failed " + hr_text(hr));
+  return v;
 }
 
 }  // namespace dx::uia

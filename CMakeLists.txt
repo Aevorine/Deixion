@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(Deixion VERSION 1.0.6 LANGUAGES C CXX RC)
+project(Deixion VERSION 1.0.7 LANGUAGES C CXX RC)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -93,5 +93,5 @@ if(NODE_EXE)
 endif()
 
 add_executable(dx-testapp WIN32 EXCLUDE_FROM_ALL tools/testapp/main.cpp)
-target_link_libraries(dx-testapp PRIVATE user32 gdi32)
+target_link_libraries(dx-testapp PRIVATE user32 gdi32 comctl32)
 target_link_options(dx-testapp PRIVATE -mwindows -municode)

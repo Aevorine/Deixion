@@ -46,7 +46,18 @@ Res<Json> Engine::call(std::string_view method, const Json& params) {
   if (!started_) return fail(E_INTERNAL, "engine is not started");
   calls_.fetch_add(1, std::memory_order_relaxed);
   Stopwatch sw;
-  Res<Json> r = (this->*(it->second))(params.is_obj() ? params : Json::object());
+  // 引擎方法在管道服务线程、界面工作线程里被调用，这些线程里逃出来的异常会直接 std::terminate 掉整个应用（连同托盘与所有已连接的客户端）；
+  // 在唯一入口把异常变成一个普通的失败结果。
+  Res<Json> r = fail(E_INTERNAL, "unexpected failure");
+  try {
+    r = (this->*(it->second))(params.is_obj() ? params : Json::object());
+  } catch (const std::exception& ex) {
+    LOGE("api", "{} threw: {}", method, ex.what());
+    r = fail(E_INTERNAL, std::string("internal error: ") + ex.what());
+  } catch (...) {
+    LOGE("api", "{} threw an unknown exception", method);
+    r = fail(E_INTERNAL, "internal error");
+  }
   record_perf(std::string(method), sw.ns());
   if (!r) {
     errors_.fetch_add(1, std::memory_order_relaxed);

@@ -18,6 +18,9 @@ Res<void> msg_scroll(HWND top, geo::PointI screen, int v_notches, int h_notches)
 // direct=true 时 dest 就是接收字符的控件；否则取 dest 所在线程的焦点控件。
 Res<void> msg_text(HWND dest, const std::wstring& text, bool direct = false);
 HWND focus_hwnd(HWND top);
+// Chromium 系窗口（Edge / Chrome / Electron：ChatGPT、VS Code、Claude 桌面版……）只在顶层 Chrome_WidgetWin_* 上处理键盘消息；
+// 内容区的子窗口（Intermediate D3D Window 等）收到 WM_CHAR / 按键会直接丢弃。是则返回该顶层窗口，否则返回空。
+HWND chromium_top(HWND any);
 Res<void> msg_key(HWND top, const KeyChord& c);
 // 带修饰键的后台快捷键：临时把目标线程的输入队列并到本线程，写入共享键盘状态后再投递。
 Res<void> msg_chord_attached(HWND top, const KeyChord& c);

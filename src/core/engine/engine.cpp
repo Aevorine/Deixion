@@ -206,13 +206,16 @@ Res<Engine::PointRes> Engine::point_of(const Target& t, const Json& p, bool allo
     if (!s) return std::unexpected(s.error());
     auto ms = uia::Service::find(**s, fq);
     if (!ms.empty() && !uia::Service::still_valid((*s)->nodes[static_cast<size_t>(ms[0].idx)])) ms.clear();
-    if (ms.empty()) {
+    // 缓存里没有就重建快照再找一次。Chromium 系窗口（Edge、Electron）的网页树是异步、分批建出来的：刚启动或刚导航之后
+    // 第一次找不到不代表真的没有，所以对它们最多再重试约 1.5 秒，元素一出现就立刻返回；其它窗口只重建一次。
+    const bool web = input::chromium_top(t.hwnd) != nullptr;
+    for (int attempt = 0; ms.empty() && attempt < (web ? 10 : 1); ++attempt) {
+      if (attempt) Sleep(150);
       auto s2 = svc.snapshot(t.hwnd, {.ttl_ms = 0, .force = true});
-      if (s2) {
-        (*s2)->act = Activity::get().mark(t.hwnd, t.pid).count;
-        s = s2;
-        ms = uia::Service::find(**s, fq);
-      }
+      if (!s2) break;
+      (*s2)->act = Activity::get().mark(t.hwnd, t.pid).count;
+      s = s2;
+      ms = uia::Service::find(**s, fq);
     }
     if (ms.empty()) return fail(E_NOT_FOUND, "no element matches " + q.dump() + " in this window. Use elements (query=…) to see what is there.");
     r.snap = *s;

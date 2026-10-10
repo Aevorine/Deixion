@@ -123,6 +123,12 @@ try {
     Check "type run ${run}: the console received '$payload' verbatim" ($got -ceq $payload) ("got " + ($(if ($null -eq $got) { '(no file; ' + $r.Text.Substring(0, [Math]::Min(120, $r.Text.Length)) + ')' } else { "'$got'" })))
   }
 
+  # 一·补：文字里自带换行（`n）就应当提交命令，不必再单独发 enter；文件内容不能带多余字符
+  $nl = 'NL' + [guid]::NewGuid().ToString('N').Substring(0, 6)
+  $r = Dx 'type' @{ window = "hwnd:$chs"; text = "Set-Content newline.txt -Value '$nl' -NoNewline`n" }
+  $got = Wait-File (Join-Path $work 'newline.txt')
+  Check 'type with a trailing newline commits the command (no separate enter)' ($got -ceq $nl) ("got " + $(if ($null -eq $got) { '(no file; ' + $r.Text.Substring(0, [Math]::Min(120, $r.Text.Length)) + ')' } else { "'$got'" }))
+
   # 二、最小化的窗口：恢复 / 最大化 / 最小化 / 再恢复，用户的窗口始终在前台
   [void][Win]::ShowWindow($ch, 6); Start-Sleep -Milliseconds 500
   [Win]::Raise($uh); Start-Sleep -Milliseconds 400

@@ -60,6 +60,7 @@ void note_focus(HWND any, HWND ctl) {
 }
 
 HWND focus_target(HWND top) {
+  if (HWND cr = chromium_top(top)) return cr;
   DWORD pid = 0;
   const DWORD tid = GetWindowThreadProcessId(top, &pid);
   GUITHREADINFO gi{};
@@ -153,6 +154,15 @@ void remember_focus(HWND ctl) { note_focus(ctl, ctl); }
 
 HWND focus_hwnd(HWND top) { return focus_target(top); }
 
+HWND chromium_top(HWND any) {
+  if (!any || !IsWindow(any)) return nullptr;
+  HWND root = GetAncestor(any, GA_ROOT);
+  if (!root) root = any;
+  wchar_t cls[64]{};
+  GetClassNameW(root, cls, 64);
+  return wcsncmp(cls, L"Chrome_WidgetWin_", 17) == 0 ? root : nullptr;
+}
+
 // 经典控制台（conhost）会把输入缓冲区里相邻的相同按键事件合并成一个带重复计数的事件，
 // 只发 WM_CHAR 时 `--` 会变成 `---`、`ee` 变成 `eee`（是否多字取决于读取方的时序）。
 // 每个字符后面补一个按键抬起消息，相邻事件就不再相同，也就不会被合并；实测整条命令逐字正确。
@@ -168,14 +178,45 @@ static void console_key_release(HWND f, wchar_t ch) {
   smsg(f, WM_KEYUP, vk, key_lp(vk, true, false));
 }
 
+// 控制台里的换行必须是一次完整的回车按键（按下 + 抬起）：只发 WM_CHAR('\r') 不会提交命令，还会在行尾留一个多余字符。
+// 与 msg_key 发的 Enter 是同一组消息，已实测能提交。
+static Res<void> console_enter(HWND f) {
+  if (!smsg(f, WM_KEYDOWN, VK_RETURN, key_lp(VK_RETURN, false, false))) return fail(E_TIMEOUT, "target window did not respond (hung?)");
+  smsg(f, WM_KEYUP, VK_RETURN, key_lp(VK_RETURN, true, false));
+  return {};
+}
+
+// Chromium 里“产生字符的控制键”（回车、制表、空格）必须是一次完整的按键：按下 + 字符 + 抬起，
+// 光有 WM_CHAR 会被当成孤立字符丢掉（textarea 里的换行因此消失），光有按下又不会产生字符。
+static Res<void> chromium_char_key(HWND f, u16 vk, wchar_t ch) {
+  if (!smsg(f, WM_KEYDOWN, vk, key_lp(vk, false, false))) return fail(E_TIMEOUT, "target window did not respond (hung?)");
+  smsg(f, WM_CHAR, ch, key_lp(vk, false, false));
+  smsg(f, WM_KEYUP, vk, key_lp(vk, true, false));
+  return {};
+}
+
 Res<void> msg_text(HWND dest, const std::wstring& text, bool direct) {
   HWND f = direct ? dest : focus_target(dest);
+  // Chromium 的内容区子窗口不处理键盘消息：无论调用方给的是哪个子窗口，字符都发给顶层窗口。
+  const HWND web = chromium_top(f);
+  if (web) f = web;
   const bool console = is_console_window(f);
   for (wchar_t ch : text) {
     if (ch == L'\r') continue;
     if (ch == L'\n') {
+      if (console) {
+        if (auto r = console_enter(f); !r) return r;
+        continue;
+      }
+      if (web) {
+        if (auto r = chromium_char_key(f, VK_RETURN, L'\r'); !r) return r;
+        continue;
+      }
       if (!smsg(f, WM_CHAR, L'\r', 1)) return fail(E_TIMEOUT, "target window did not respond (hung?)");
-      if (console) console_key_release(f, L'\r');
+      continue;
+    }
+    if (ch == L'\t' && web) {
+      if (auto r = chromium_char_key(f, VK_TAB, L'\t'); !r) return r;
       continue;
     }
     if (!smsg(f, WM_CHAR, ch, 1)) return fail(E_TIMEOUT, "target window did not respond (hung?)");
@@ -187,6 +228,10 @@ Res<void> msg_text(HWND dest, const std::wstring& text, bool direct) {
 
 Res<void> msg_key(HWND top, const KeyChord& c) {
   HWND f = focus_target(top);
+  // 单独的 Enter / Tab / Space 在 Chromium 里要带一个字符消息才会产生换行、制表、空格（网页的 keydown 监听照常触发）。
+  // 这三条必须同步发送：投递进队列时 Chromium 会把紧邻的 WM_KEYDOWN 与 WM_CHAR 各处理一遍，textarea 里一次回车就变成两个换行。
+  if (!c.has_mods() && (c.vk == VK_RETURN || c.vk == VK_TAB || c.vk == VK_SPACE) && chromium_top(f) != nullptr)
+    return chromium_char_key(f, c.vk, c.vk == VK_RETURN ? L'\r' : c.vk == VK_TAB ? L'\t' : L' ');
   if (!pmsg(f, WM_KEYDOWN, c.vk, key_lp(c.vk, false, c.ext))) return fail(E_WIN32, "cannot post key message");
   pmsg(f, WM_KEYUP, c.vk, key_lp(c.vk, true, c.ext));
   return {};

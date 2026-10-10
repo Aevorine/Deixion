@@ -4,6 +4,31 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-10-10
+
+### Fixed
+- Background typing into Chromium-based windows (Edge, Electron apps) reached the page only by luck. Keyboard messages are now delivered to the top-level `Chrome_WidgetWin_*` window (the content child window dropped them), a background click gives the page its focus first, `Enter` / `Tab` / `Space` are sent as real key events so a text area gets one newline instead of two, and `replace` selects all and types instead of writing through UI Automation (which fires no `input` event on `contenteditable`). Measured on an Edge test page: `contenteditable`, `textarea` and `input` receive ASCII, CJK, emoji and newlines; append and replace both work. ChatGPT desktop itself was not exercised in this release.
+- The accessibility tree of a Chromium window is built asynchronously after the first client asks; the first query used to see only the browser chrome and `find` failed with `not_found`. The first snapshot now waits briefly for the web document, and `find` retries for up to 1.5 s on Chromium windows.
+- `launch` of a path that does not exist returns `not_found` at once. It used to raise a modal Windows error box that held the call for about two minutes.
+- The `launch` guard resolves `.lnk` shortcuts and `%VAR%` paths and recognizes more script and launcher extensions (`.py`, `.rb`, `.pl`, `.php`, `.lua`, `.sh`, `.ahk`, `.au3`, `.jnlp`, `.xll`, `.chm`, …), Windows Terminal, `ssh` / `scp` / `sftp`, `reg`, WSL distribution launchers and Chromium command-prefix flags (`--renderer-cmd-prefix` and similar). The guard remains a guard rail, not a sandbox.
+- A crash at exit (`0xc0000409`) when the update worker was still running; the updater now cancels its in-flight request and joins before the process ends.
+- Typed `\n` in a classic console window now commits the command as a real `Enter` key instead of leaving a stray character.
+- `set_value` on a slider (`RangeValue`) is now undoable; `undo` of a window state change holds the foreground lock like the original operation.
+- Non-finite coordinates (`nan`, `inf`) are rejected; lone UTF-16 surrogates in JSON no longer corrupt parsing.
+- Window operations on Deixion's own windows are refused like other input actions.
+
+### Security
+- The installer keeps the WebView2 bootstrapper under an unpredictable name and holds it read-locked from the signature check until it has run, so the verified bytes are the executed bytes.
+- Named pipe: frames are read incrementally with a size bound, at most 64 clients, a failure to build the security descriptor stops the listener instead of opening it wider, and handler exceptions are contained.
+- WebView: navigation away from the application origin is cancelled and web messages from any other origin are ignored.
+- Updater: the installer download is capped at 256 MiB and re-hashed right before it is started, then compared with the hash that was verified.
+- `claude mcp` helper calls end after 30 s instead of waiting forever.
+- npm launcher: `reg.exe` is called by absolute path and downloads are size-capped (256 MiB installer, 1 MiB checksum file).
+
+### Added
+- `tools/e2e/hardening-e2e.mjs`: end-to-end regression for the items above (isolated mode, Edge test page, slider target); `console-e2e.ps1` covers the typed newline; `mcp-e2e.mjs` covers refusal of window operations on Deixion's own windows.
+- The test target has a slider (trackbar).
+
 ## [1.0.6] - 2026-10-09
 
 ### Fixed
@@ -76,6 +101,7 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 
 [1.0.5]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.5
 [1.0.6]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.6
+[1.0.7]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.7
 [1.0.4]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.4
 [1.0.3]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.3
 [1.0.2]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.2

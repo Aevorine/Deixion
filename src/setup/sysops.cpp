@@ -221,10 +221,20 @@ bool ensure_webview2(std::wstring* detail) {
   log(L"WebView2 runtime missing, fetching bootstrapper");
   wchar_t tmp[MAX_PATH];
   GetTempPathW(MAX_PATH, tmp);
-  const fs::path exe = fs::path(tmp) / std::format(L"dx-wv2-{}.exe", GetTickCount64());
+  // 文件名不可预测（同用户其它进程不能提前占位），且校验之后一直持有一个只放行读取的句柄，直到引导程序跑完：
+  // 这段时间里没人能改写或替换这个文件，签名校验与实际执行的是同一份字节。
+  GUID g{};
+  CoCreateGuid(&g);
+  wchar_t gs[48]{};
+  StringFromGUID2(g, gs, 48);
+  const fs::path exe = fs::path(tmp) / std::format(L"dx-wv2-{}.exe", gs);
   bool ok = false;
+  HANDLE hold = INVALID_HANDLE_VALUE;
   if (!download(L"go.microsoft.com", L"/fwlink/p/?LinkId=2124703", exe)) {
     if (detail) *detail = L"download";
+  } else if ((hold = CreateFileW(exe.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr)) == INVALID_HANDLE_VALUE) {
+    if (detail) *detail = L"download";
+    log(L"cannot lock the bootstrapper file, not executed");
   } else if (!signed_by_microsoft(exe.c_str())) {
     if (detail) *detail = L"signature";
     log(L"bootstrapper signature check failed, not executed");
@@ -234,6 +244,7 @@ bool ensure_webview2(std::wstring* detail) {
     if (!ok && detail) *detail = L"install";
     log(std::format(L"bootstrapper exit {}", rc));
   }
+  if (hold != INVALID_HANDLE_VALUE) CloseHandle(hold);
   std::error_code ec;
   fs::remove(exe, ec);
   return ok;

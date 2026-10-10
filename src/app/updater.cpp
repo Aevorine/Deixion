@@ -56,9 +56,14 @@ bool trusted_host(const std::wstring& h) {
          _wcsicmp(h.c_str(), L"githubusercontent.com") == 0 || ends(L".githubusercontent.com");
 }
 
-Res<void> http_get(const std::string& url, std::string* body, const std::wstring* file, const std::function<void(u64, u64)>& progress) {
+constexpr u64 kMaxInstaller = 256ull << 20;  // 安装包只有几 MB；上限只为防止异常的重定向把磁盘灌满
+
+// live：登记正在进行的请求句柄，进程退出时由 shutdown() 关掉它来打断阻塞中的读；谁先把它换成空，谁负责关闭。
+Res<void> http_get(const std::string& url, std::string* body, const std::wstring* file, const std::function<void(u64, u64)>& progress, const std::atomic<bool>* stop = nullptr,
+                   std::atomic<void*>* live = nullptr) {
   Url u;
   if (!crack(url, u) || !u.https || !trusted_host(u.host)) return fail(E_DENIED, "untrusted update URL");
+  if (stop && stop->load()) return fail(E_CANCELLED, "update cancelled");
   HINTERNET ses = WinHttpOpen(L"Deixion/" DX_VERSION_W, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, nullptr, nullptr, 0);
   if (!ses) return fail(E_IO, "cannot open network session");
   Defer c1([&] { WinHttpCloseHandle(ses); });
@@ -68,9 +73,15 @@ Res<void> http_get(const std::string& url, std::string* body, const std::wstring
   Defer c2([&] { WinHttpCloseHandle(con); });
   HINTERNET req = WinHttpOpenRequest(con, L"GET", u.path.c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
   if (!req) return fail(E_IO, "cannot open request");
-  Defer c3([&] { WinHttpCloseHandle(req); });
+  if (live) live->store(req);
+  Defer c3([&] {
+    if (!live || live->exchange(nullptr) == req) WinHttpCloseHandle(req);
+  });
   const wchar_t* hdr = L"Accept: application/vnd.github+json, application/octet-stream\r\n";
-  if (!WinHttpSendRequest(req, hdr, static_cast<DWORD>(-1), nullptr, 0, 0, 0) || !WinHttpReceiveResponse(req, nullptr)) return fail(E_IO, "network request failed (" + std::to_string(GetLastError()) + ")");
+  if (!WinHttpSendRequest(req, hdr, static_cast<DWORD>(-1), nullptr, 0, 0, 0) || !WinHttpReceiveResponse(req, nullptr)) {
+    if (stop && stop->load()) return fail(E_CANCELLED, "update cancelled");
+    return fail(E_IO, "network request failed (" + std::to_string(GetLastError()) + ")");
+  }
   DWORD code = 0, sz = sizeof code;
   WinHttpQueryHeaders(req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, nullptr, &code, &sz, nullptr);
   if (code != 200) return fail(code == 404 ? E_NOT_FOUND : E_IO, "server answered " + std::to_string(code));
@@ -78,6 +89,7 @@ Res<void> http_get(const std::string& url, std::string* body, const std::wstring
   wchar_t lenbuf[32];
   sz = sizeof lenbuf;
   if (WinHttpQueryHeaders(req, WINHTTP_QUERY_CONTENT_LENGTH, nullptr, lenbuf, &sz, nullptr)) total = _wcstoui64(lenbuf, nullptr, 10);
+  if (file && total > kMaxInstaller) return fail(E_BAD_ARG, "the download is larger than any Deixion installer");
   HANDLE fh = INVALID_HANDLE_VALUE;
   if (file) {
     fh = CreateFileW(file->c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -90,8 +102,12 @@ Res<void> http_get(const std::string& url, std::string* body, const std::wstring
   u64 got = 0;
   for (;;) {
     DWORD n = 0;
-    if (!WinHttpReadData(req, buf.data(), static_cast<DWORD>(buf.size()), &n)) return fail(E_IO, "download interrupted");
+    if (!WinHttpReadData(req, buf.data(), static_cast<DWORD>(buf.size()), &n)) {
+      if (stop && stop->load()) return fail(E_CANCELLED, "update cancelled");
+      return fail(E_IO, "download interrupted");
+    }
     if (!n) break;
+    if (stop && stop->load()) return fail(E_CANCELLED, "update cancelled");
     if (body) body->append(buf.data(), n);
     if (fh != INVALID_HANDLE_VALUE) {
       DWORD w = 0;
@@ -100,6 +116,7 @@ Res<void> http_get(const std::string& url, std::string* body, const std::wstring
     got += n;
     if (progress) progress(got, total);
     if (body && body->size() > (8u << 20)) return fail(E_BAD_ARG, "response too large");
+    if (file && got > kMaxInstaller) return fail(E_BAD_ARG, "the download is larger than any Deixion installer");
   }
   return {};
 }
@@ -179,7 +196,7 @@ void Updater::check(bool) {
   {
     std::lock_guard lk(mu_);
     // 已校验的包保留到安装，重复检查不破坏 ready 状态。
-    if (busy_ || state_ == "ready") return;
+    if (busy_ || state_ == "ready" || stop_.load()) return;
     busy_ = true;
     state_ = "checking";
     error_.clear();
@@ -188,7 +205,7 @@ void Updater::check(bool) {
   publish();
   worker_ = std::thread([this] {
     std::string body;
-    auto r = http_get(std::string("https://api.github.com/repos/") + DX_REPO + "/releases/latest", &body, nullptr, nullptr);
+    auto r = http_get(std::string("https://api.github.com/repos/") + DX_REPO + "/releases/latest", &body, nullptr, nullptr, &stop_, &live_req_);
     if (!r) {
       set_error(r.error().code == E_NOT_FOUND ? "no release has been published yet" : r.error().msg);
       return;
@@ -222,7 +239,7 @@ void Updater::check(bool) {
 void Updater::download() {
   {
     std::lock_guard lk(mu_);
-    if (busy_ || state_ != "available" || asset_url_.empty() || sums_url_.empty()) return;
+    if (busy_ || state_ != "available" || asset_url_.empty() || sums_url_.empty() || stop_.load()) return;
     busy_ = true;
     state_ = "downloading";
     got_ = total_ = 0;
@@ -250,13 +267,13 @@ void Updater::download() {
         last_pub = got;
         publish();
       }
-    });
+    }, &stop_, &live_req_);
     if (!r) {
       set_error(r.error().msg);
       return;
     }
     std::string sbody;
-    if (auto rs = http_get(sums, &sbody, nullptr, nullptr); !rs) {
+    if (auto rs = http_get(sums, &sbody, nullptr, nullptr, &stop_, &live_req_); !rs) {
       set_error("cannot fetch SHA256SUMS: " + rs.error().msg);
       return;
     }
@@ -282,6 +299,7 @@ void Updater::download() {
     {
       std::lock_guard lk(mu_);
       file_ = text::narrow(file);
+      sha_ = *h;
       state_ = "ready";
       busy_ = false;
     }
@@ -290,14 +308,33 @@ void Updater::download() {
   });
 }
 
+void Updater::shutdown() {
+  stop_.store(true);
+  // 阻塞在网络读上的工作线程：关掉它的请求句柄让读立刻返回（谁先把句柄换成空，谁负责关）。
+  if (void* r = live_req_.exchange(nullptr)) WinHttpCloseHandle(static_cast<HINTERNET>(r));
+  if (worker_.joinable()) worker_.join();
+  notify_ = nullptr;
+}
+
 Res<void> Updater::apply() {
-  std::string file;
+  std::string file, sha;
   {
     std::lock_guard lk(mu_);
     if (state_ != "ready") return fail(E_BUSY, "no verified update is ready");
     file = file_;
+    sha = sha_;
   }
   if (paths::portable()) return fail(E_UNSUPPORTED, "portable copies are not updated in place; download the new zip from the release page");
+  // 校验到安装之间包放在用户可写的目录里：执行前再核对一次，被换掉的包不运行。
+  auto again = sha256_file(text::widen(file));
+  if (!again || sha.empty() || *again != sha) {
+    std::lock_guard lk(mu_);
+    state_ = "error";
+    error_ = "the downloaded installer changed after it was verified; it was not started";
+    file_.clear();
+    sha_.clear();
+    return fail(E_DENIED, "the downloaded installer changed after it was verified; it was not started");
+  }
   std::wstring cmd = L"\"" + text::widen(file) + L"\" /S /UPDATE /RELAUNCH";
   STARTUPINFOW si{sizeof si};
   PROCESS_INFORMATION pi{};

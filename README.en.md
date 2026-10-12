@@ -92,31 +92,31 @@ For classic Win32 controls the `uia` click and the `uia_set` / `set_value` write
 
 **Experience store** (`experience.dxl`) keeps one statistics record for each (application, role, action, channel) tuple. On every update the old statistics are multiplied by 0.985 (decay). Candidate channels are ranked with UCB:
 
-$$
+```math
 \text{score}=\frac{R+1.5\,p_i}{n+1.5}+0.35\sqrt{\frac{\ln(N+2)}{n+1.5}}
-$$
+```
 
-Here $n$ is the decayed sample count, $R$ is the decayed reward sum, $p_i=0.9-0.1\,i$ is the prior from the default order (with $i$ the candidate index), and $N$ is the sum of sample counts over all candidates. The reward is $0.9/(1+t/6)$ when no verification was done; $\max(0.3,\,1/(1+t/6))$ when verification confirmed the effect; and $0.45$ when verification could not confirm it ($t$ is the duration in milliseconds). The store also learns a reaction time and a UI-quiet time, which set the waiting windows for verification and for `wait`.
+Here $`n`$ is the decayed sample count, $`R`$ is the decayed reward sum, $`p_i=0.9-0.1\,i`$ is the prior from the default order (with $`i`$ the candidate index), and $`N`$ is the sum of sample counts over all candidates. The reward is $`0.9/(1+t/6)`$ when no verification was done; $`\max(0.3,\,1/(1+t/6))`$ when verification confirmed the effect; and $`0.45`$ when verification could not confirm it ($`t`$ is the duration in milliseconds). The store also learns a reaction time and a UI-quiet time, which set the waiting windows for verification and for `wait`.
 
 ## Meridian coordinates
 
-Meridian treats the client area of any window as a unit square. The horizontal coordinate is the longitude $\lambda$, the vertical coordinate is the latitude $\varphi$, the top-left corner is $(0,0)$ and the bottom-right corner is $(1,1)$. The same $(\lambda,\varphi)$ points at the same content at any window size and any DPI, so a model only needs to remember a proportional position, not pixels.
+Meridian treats the client area of any window as a unit square. The horizontal coordinate is the longitude $`\lambda`$, the vertical coordinate is the latitude $`\varphi`$, the top-left corner is $`(0,0)`$ and the bottom-right corner is $`(1,1)`$. The same $`(\lambda,\varphi)`$ points at the same content at any window size and any DPI, so a model only needs to remember a proportional position, not pixels.
 
-Let the client area's top-left corner be $(x_0,y_0)$ and its size $W\times H$ (physical pixels). A pixel $(x,y)$ converts to and from proportional coordinates as follows:
+Let the client area's top-left corner be $`(x_0,y_0)`$ and its size $`W\times H`$ (physical pixels). A pixel $`(x,y)`$ converts to and from proportional coordinates as follows:
 
-$$
+```math
 \lambda=\mathrm{clamp}_{[0,1]}\!\left(\frac{x-x_0+\tfrac12}{W}\right),\qquad
 \varphi=\mathrm{clamp}_{[0,1]}\!\left(\frac{y-y_0+\tfrac12}{H}\right)
-$$
+```
 
-$$
+```math
 x=x_0+\mathrm{clamp}_{[0,\,W-1]}\!\left(\lfloor \lambda W\rfloor\right),\qquad
 y=y_0+\mathrm{clamp}_{[0,\,H-1]}\!\left(\lfloor \varphi H\rfloor\right)
-$$
+```
 
-**Grid codes.** Each $\lambda$ and $\varphi$ is first quantised to a 16-bit integer $q=\min(\lfloor 65536\cdot v\rfloor,\,65535)$. The bits of the two values are then interleaved into a Morton code $K=(\mathrm{spread}(q_\lambda)\ll 1)\,|\,\mathrm{spread}(q_\varphi)$, and shifted left by 3 to give a 35-bit value $K_{35}$. A code of length $L$ ($1\le L\le 6$) takes the top $5L$ bits of $K_{35}$ and maps every 5 bits to one character. The alphabet is `0123456789ABCDEFGHJKMNPQRSTVWXYZ`, which leaves out I, L, O and U. Decoding is case-insensitive and treats I and L as 1 and O as 0. A prefix is the enclosing cell, so a position can be narrowed down level by level.
+**Grid codes.** Each $`\lambda`$ and $`\varphi`$ is first quantised to a 16-bit integer $`q=\min(\lfloor 65536\cdot v\rfloor,\,65535)`$. The bits of the two values are then interleaved into a Morton code $`K=(\mathrm{spread}(q_\lambda)\ll 1)\,|\,\mathrm{spread}(q_\varphi)`$, and shifted left by 3 to give a 35-bit value $`K_{35}`$. A code of length $`L`$ ($`1\le L\le 6`$) takes the top $`5L`$ bits of $`K_{35}`$ and maps every 5 bits to one character. The alphabet is `0123456789ABCDEFGHJKMNPQRSTVWXYZ`, which leaves out I, L, O and U. Decoding is case-insensitive and treats I and L as 1 and O as 0. A prefix is the enclosing cell, so a position can be narrowed down level by level.
 
-**Precision.** At level $L$ the horizontal axis has $n_x=\lceil 5L/2\rceil$ bits and the vertical axis has $n_y=\lfloor 5L/2\rfloor$ bits, so a cell measures $2^{-n_x}\times 2^{-n_y}$. The system picks the smallest $L$ with $2^{n_x}\ge W$ and $2^{n_y}\ge H$, which makes a cell no larger than one pixel. By this formula, a 1920×1080 window needs 5 characters ($n_x=13$, $n_y=12$; cells of about 0.23 × 0.26 px). This is a calculation from the formula, not a measurement.
+**Precision.** At level $`L`$ the horizontal axis has $`n_x=\lceil 5L/2\rceil`$ bits and the vertical axis has $`n_y=\lfloor 5L/2\rfloor`$ bits, so a cell measures $`2^{-n_x}\times 2^{-n_y}`$. The system picks the smallest $`L`$ with $`2^{n_x}\ge W`$ and $`2^{n_y}\ge H`$, which makes a cell no larger than one pixel. By this formula, a 1920×1080 window needs 5 characters ($`n_x=13`$, $`n_y=12`$; cells of about 0.23 × 0.26 px). This is a calculation from the formula, not a measurement.
 
 ## MCP tools
 
@@ -345,7 +345,7 @@ There are only two third-party components: the WebView2 SDK and KaTeX. Their lic
 
 ## Update: 1.0.10
 
-WPF, UWP and Electron were measured end to end (`tools/e2e/frameworks-e2e.mjs`), and three things were fixed as a result: a WPF window does not act on mouse messages, so UI Automation now goes first; `set_value` treats a numeric string (the MCP schema declares `value` as a string) as a number on controls that have a range but no text value (sliders); a whole-value replace typed into a background Chromium window always sends one background click first. The installer gained `/WEBVIEW2=1`. The Elements page no longer prints “null” in the details bar for controls that take no value. The README has screenshots, and `\operatorname`, which GitHub does not render, became `\mathrm` in the formulas. See the [CHANGELOG](CHANGELOG.md).
+WPF, UWP and Electron were measured end to end (`tools/e2e/frameworks-e2e.mjs`), and three things were fixed as a result: a WPF window does not act on mouse messages, so UI Automation now goes first; `set_value` treats a numeric string (the MCP schema declares `value` as a string) as a number on controls that have a range but no text value (sliders); a whole-value replace typed into a background Chromium window always sends one background click first. The installer gained `/WEBVIEW2=1`. The Elements page no longer prints “null” in the details bar for controls that take no value. The README has screenshots. In the formulas, `\operatorname`, which GitHub does not render, became `\mathrm`, and they are now written in GitHub's verbatim math forms (Markdown used to consume `\,` and `\!`, leaving a stray comma or exclamation mark, and inline formulas next to full-width punctuation stayed raw text). See the [CHANGELOG](CHANGELOG.md).
 
 ## 1.0.9
 

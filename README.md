@@ -91,31 +91,31 @@ Claude Code ──stdio(MCP)──► deixion-cli.exe ──命名管道──�
 
 **经验库**（`experience.dxl`）为每个（应用、角色、动作、通道）记一条统计，每次更新时旧统计乘以 0.985 衰减。候选通道用 UCB 排序：
 
-$$
+```math
 \text{score}=\frac{R+1.5\,p_i}{n+1.5}+0.35\sqrt{\frac{\ln(N+2)}{n+1.5}}
-$$
+```
 
-其中 $n$ 为衰减后的样本数，$R$ 为衰减后的奖励和，$p_i=0.9-0.1\,i$ 是按默认顺序给的先验（$i$ 为候选序号），$N$ 为各候选样本数之和。奖励的取值：未进行校验时为 $0.9/(1+t/6)$；校验确认生效时为 $\max(0.3,\,1/(1+t/6))$；校验未能确认时为 $0.45$（$t$ 为耗时，毫秒）。经验库还会学习“反应时间”和“界面静止时长”，用于设定校验与 `wait` 的等待窗口。
+其中 $`n`$ 为衰减后的样本数，$`R`$ 为衰减后的奖励和，$`p_i=0.9-0.1\,i`$ 是按默认顺序给的先验（$`i`$ 为候选序号），$`N`$ 为各候选样本数之和。奖励的取值：未进行校验时为 $`0.9/(1+t/6)`$；校验确认生效时为 $`\max(0.3,\,1/(1+t/6))`$；校验未能确认时为 $`0.45`$（$`t`$ 为耗时，毫秒）。经验库还会学习“反应时间”和“界面静止时长”，用于设定校验与 `wait` 的等待窗口。
 
 ## 经纬定位 Meridian
 
-Meridian 把任意窗口的客户区当成一张单位正方形：横向坐标为经度 $\lambda$，纵向坐标为纬度 $\varphi$，左上角为 $(0,0)$，右下角为 $(1,1)$。同一个 $(\lambda,\varphi)$ 在任何窗口大小、任何 DPI 下指向同一处内容，所以模型只需要记住比例位置，不必记像素。
+Meridian 把任意窗口的客户区当成一张单位正方形：横向坐标为经度 $`\lambda`$，纵向坐标为纬度 $`\varphi`$，左上角为 $`(0,0)`$，右下角为 $`(1,1)`$。同一个 $`(\lambda,\varphi)`$ 在任何窗口大小、任何 DPI 下指向同一处内容，所以模型只需要记住比例位置，不必记像素。
 
-设客户区左上角为 $(x_0,y_0)$，宽高为 $W\times H$（物理像素），像素 $(x,y)$ 与比例坐标互换如下：
+设客户区左上角为 $`(x_0,y_0)`$，宽高为 $`W\times H`$（物理像素），像素 $`(x,y)`$ 与比例坐标互换如下：
 
-$$
+```math
 \lambda=\mathrm{clamp}_{[0,1]}\!\left(\frac{x-x_0+\tfrac12}{W}\right),\qquad
 \varphi=\mathrm{clamp}_{[0,1]}\!\left(\frac{y-y_0+\tfrac12}{H}\right)
-$$
+```
 
-$$
+```math
 x=x_0+\mathrm{clamp}_{[0,\,W-1]}\!\left(\lfloor \lambda W\rfloor\right),\qquad
 y=y_0+\mathrm{clamp}_{[0,\,H-1]}\!\left(\lfloor \varphi H\rfloor\right)
-$$
+```
 
-**格网编码。** 每个 $\lambda$ 和 $\varphi$ 先量化为 16 位整数 $q=\min(\lfloor 65536\cdot v\rfloor,\,65535)$，再把两者的位交织成 Morton 码 $K=(\mathrm{spread}(q_\lambda)\ll 1)\,|\,\mathrm{spread}(q_\varphi)$，左移 3 位得到 35 位的 $K_{35}$。编码 $L$ 位（$1\le L\le 6$）取 $K_{35}$ 的高 $5L$ 位，每 5 位映射为一个字符，字母表为 `0123456789ABCDEFGHJKMNPQRSTVWXYZ`（不含 I、L、O、U；解码时大小写不敏感，并把 I、L 当作 1、O 当作 0）。前缀就是外层格子，可以由粗到细逐级定位。
+**格网编码。** 每个 $`\lambda`$ 和 $`\varphi`$ 先量化为 16 位整数 $`q=\min(\lfloor 65536\cdot v\rfloor,\,65535)`$，再把两者的位交织成 Morton 码 $`K=(\mathrm{spread}(q_\lambda)\ll 1)\,|\,\mathrm{spread}(q_\varphi)`$，左移 3 位得到 35 位的 $`K_{35}`$。编码 $`L`$ 位（$`1\le L\le 6`$）取 $`K_{35}`$ 的高 $`5L`$ 位，每 5 位映射为一个字符，字母表为 `0123456789ABCDEFGHJKMNPQRSTVWXYZ`（不含 I、L、O、U；解码时大小写不敏感，并把 I、L 当作 1、O 当作 0）。前缀就是外层格子，可以由粗到细逐级定位。
 
-**精度。** 第 $L$ 级格子在横向有 $n_x=\lceil 5L/2\rceil$ 位、纵向有 $n_y=\lfloor 5L/2\rfloor$ 位，格子尺寸为 $2^{-n_x}\times 2^{-n_y}$。系统选取满足 $2^{n_x}\ge W$ 且 $2^{n_y}\ge H$ 的最小 $L$，此时一个格子不大于一个像素。按公式推算，1920×1080 的窗口需要 5 位编码（$n_x=13$、$n_y=12$，格子约 0.23 × 0.26 px）。这是公式推算结果，不是实测。
+**精度。** 第 $`L`$ 级格子在横向有 $`n_x=\lceil 5L/2\rceil`$ 位、纵向有 $`n_y=\lfloor 5L/2\rfloor`$ 位，格子尺寸为 $`2^{-n_x}\times 2^{-n_y}`$。系统选取满足 $`2^{n_x}\ge W`$ 且 $`2^{n_y}\ge H`$ 的最小 $`L`$，此时一个格子不大于一个像素。按公式推算，1920×1080 的窗口需要 5 位编码（$`n_x=13`$、$`n_y=12`$，格子约 0.23 × 0.26 px）。这是公式推算结果，不是实测。
 
 ## MCP 工具
 
@@ -344,7 +344,7 @@ cmake --build build
 
 ## 本轮更新：1.0.10
 
-在 WPF、UWP、Electron 上做了端到端实测（`tools/e2e/frameworks-e2e.mjs`），并据此修了三处：WPF 窗口不处理鼠标消息，现在优先走 UI Automation；`set_value` 收到字符串形式的数字（MCP 的 schema 把 `value` 声明为字符串）时，在只有范围、没有文本值的控件（滑块）上按数字处理；往后台的 Chromium 窗口整段替换输入时总是先补一次后台点击。安装器新增 `/WEBVIEW2=1`。元素页的详情栏不再对不可赋值的控件显示“null”。README 加了界面截图，公式里 GitHub 不支持的 `\operatorname` 换成了 `\mathrm`。详见 [CHANGELOG](CHANGELOG.md)。
+在 WPF、UWP、Electron 上做了端到端实测（`tools/e2e/frameworks-e2e.mjs`），并据此修了三处：WPF 窗口不处理鼠标消息，现在优先走 UI Automation；`set_value` 收到字符串形式的数字（MCP 的 schema 把 `value` 声明为字符串）时，在只有范围、没有文本值的控件（滑块）上按数字处理；往后台的 Chromium 窗口整段替换输入时总是先补一次后台点击。安装器新增 `/WEBVIEW2=1`。元素页的详情栏不再对不可赋值的控件显示“null”。README 加了界面截图；公式里 GitHub 不支持的 `\operatorname` 换成了 `\mathrm`，并改用 GitHub 的原样公式写法（此前 `\,`、`\!` 会被 Markdown 吃掉，在公式里留下多余的逗号和叹号，紧挨全角括号的行内公式也不渲染）。详见 [CHANGELOG](CHANGELOG.md)。
 
 ## 1.0.9
 

@@ -4,6 +4,21 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-10-12
+
+### Fixed
+- A WPF window (class `HwndWrapper[...]`) does not turn mouse messages into clicks, and the engine could not tell: 3 of 3 message clicks had no effect and still reported success. UI Automation is now ranked ahead of the message channel for these windows, as it already was for XAML / UWP content windows.
+- `set_value` with a numeric string such as `"70"` (the MCP schema declares `value` as a string) failed on controls that expose a range but no text value, a WPF slider for example. Such a string is now treated as a number there; a JSON number behaves as before, and a control that has a text value still receives the string.
+- A whole-value replace (`type` with `replace: true`) into a Chromium-based window in the background could lose every character right after a UI Automation click on the same window. That click activates the window for a moment; once it is back in the background the accessibility tree still reports the element as focused, but the page takes no keys. A replace now always sends one background click to the element first (the caret position does not matter for a replace). Measured on VS Code. Appending is unchanged, because the click would move the caret.
+- The Elements page printed the word “null” in the details bar for a control that takes no value.
+- `README.md` / `README.en.md`: GitHub refused to render the formulas that used `\operatorname` (“The following macros are not allowed: operatorname”); they use `\mathrm` now.
+
+### Added
+- `tools/e2e/frameworks-e2e.mjs` with `fg-watch.ps1` and `wpf-target.ps1`: real actions on a WPF window, on UWP (Windows Calculator) and on Electron (VS Code with a throwaway profile), each step checked against the target's own state, while a high-priority thread polls the real foreground window. Result on 2026-10-12: every action took effect; every UI Automation action made the target the foreground window briefly before the user's window was put back (WPF 5 actions, about 0.5 to 0.6 s in total, longest about 0.25 to 0.3 s; Calculator 4 key presses, 4 to 7 episodes, mostly 40 to 95 ms each; VS Code about 35 to 65 ms per UI Automation click, none for message clicks and typing). Games were not measured. `--shots=dir` saves a screenshot after every step.
+- `type` results on a background Chromium window carry `web_focus` (`clicked`, `had_focus`, `had_focus_clicked`, `click_failed`), so a lost input can be told apart from a skipped focus click without rerunning.
+- Installer switch `/WEBVIEW2=1`: download and run Microsoft's WebView2 bootstrapper even when a runtime is detected. It exercises the download, signature check, locked execution and clean-up path; on a machine that already had runtime 154.0.4258.62 the bootstrapper returned `0x80040828`, the runtime did not change and the install finished normally. A machine that really starts without the runtime has still not been tested.
+- Screenshots of the window in both READMEs (`docs/images/zh`, `docs/images/en`), produced by `tools/shots.mjs` from a portable copy of the real program driving the test target.
+
 ## [1.0.9] - 2026-10-12
 
 ### Added
@@ -126,8 +141,9 @@ Maintenance release. The engine, the UI and the installer behave as in 1.0.7.
 ### Security
 - `batch` is limited to the actions and queries MCP already exposes; input actions cannot operate Deixion's own windows; the pipe client verifies the server runs as the current account.
 
+[1.0.10]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.10
 [1.0.9]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.9
-[1.0.8]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.8
+[1.0.8]: https://github.com/Aevorine/Deixion/commit/9f3bf35
 [1.0.7]: https://github.com/Aevorine/Deixion/commit/56ea236
 [1.0.6]: https://github.com/Aevorine/Deixion/commit/97147a5
 [1.0.5]: https://github.com/Aevorine/Deixion/commit/3c770c9

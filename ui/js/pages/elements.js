@@ -73,7 +73,8 @@ registerPage({
       );
       const canValue = (n.can || []).includes('value');
       const val = h('input', { class: 'input', placeholder: t('要写入的值'), style: { width: '170px', display: canValue ? '' : 'none' } });
-      actRow.append(
+      // 原生的 append 会把 null 写成文字“null”，所以先滤掉不显示的那一项。
+      actRow.append(...[
         asyncBtn({ icon: 'actions', label: t('点击'), kind: 'primary', disabled: (n.state || []).includes('disabled') }, async () => {
           const r = await call('click', { window: target, element: n.id });
           toast(t('已点击') + ' · ' + r.strategy + (r.confirmed ? ' · ' + t('已确认') : ''), 'ok');
@@ -84,7 +85,7 @@ registerPage({
           toast(t('已赋值') + ' · ' + r.strategy, 'ok');
         }) : null,
         btn({ icon: 'copy', tip: t('复制选择器（给 Claude 用）'), kind: 'ghost', onClick: () => copy(JSON.stringify({ window: target, element: n.id, role: n.role, name: n.name }), call) }),
-      );
+      ].filter(Boolean));
     }
 
     async function loadWindows() {

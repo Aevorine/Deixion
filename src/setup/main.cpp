@@ -22,6 +22,7 @@ using namespace dxsetup;
 struct Args {
   bool silent{false}, update{false}, relaunch{false}, uninstall{false}, purge{false};
   int start_menu{-1}, desktop{-1}, autostart{-1}, claude{-1};  // -1 = 未指定，取默认或沿用现状
+  int webview2{-1};  // 1 = 即使检测到 WebView2 运行库，也重新跑一遍微软的引导程序（修复）
   fs::path dir, from_temp, log;
 };
 
@@ -45,7 +46,7 @@ Args parse() {
     else if (eq(s, L"/RELAUNCH")) a.relaunch = true;
     else if (eq(s, L"/UNINSTALL")) a.uninstall = true;
     else if (eq(s, L"/PURGE")) a.purge = true;
-    else if (flag(L"/AUTOSTART", a.autostart) || flag(L"/DESKTOP", a.desktop) || flag(L"/STARTMENU", a.start_menu) || flag(L"/CLAUDE", a.claude)) {}
+    else if (flag(L"/AUTOSTART", a.autostart) || flag(L"/DESKTOP", a.desktop) || flag(L"/STARTMENU", a.start_menu) || flag(L"/CLAUDE", a.claude) || flag(L"/WEBVIEW2", a.webview2)) {}
     else if (starts(s, L"/LOG=")) a.log = s.substr(5);
     else if (starts(s, L"/FROMTEMP=")) a.from_temp = s.substr(10);
     else if (starts(s, L"/D=")) {
@@ -156,6 +157,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int) {
   o.autostart = a.autostart >= 0 ? a.autostart : sys::run_key_present();
   // 接入 Claude Code：全新安装默认接入；更新只在以前接入过（skill 已在）时刷新，不替用户重新接入。
   o.claude = a.claude >= 0 ? a.claude : (keep ? fs::exists(sys::home() / L".claude" / L"skills" / L"deixion") : true);
+  o.webview2 = a.webview2 == 1;
 
   if (a.silent) {
     const Result r = install(pl, o, nullptr);

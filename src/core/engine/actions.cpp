@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cmath>
 
 #include "core/base/clock.hpp"
@@ -414,12 +415,18 @@ Res<Json> Engine::a_type(const Json& p) {
   // 在元素上发一次后台点击（消息通道：不激活窗口、不动光标）。已经有焦点就不动，免得挪走用户放好的插入点；
   // 刚点过的话把插入点移到末尾，保持“追加”的语义。
   bool web_clicked = false;
+  const char* web_focus = nullptr;  // 这一步是怎么处理网页焦点的，写进返回值：字符没进去时不用猜是“没点”还是“点了没用”
   if (p["focus"].as_bool(true) && have_pt && !fg && !is_front && input::chromium_top(top)) {
     const bool has = pr.node >= 0 && svc.has_focus(pr.snap->nodes[static_cast<size_t>(pr.node)]);
-    if (!has) {
+    // “元素已有焦点”不代表这个后台窗口还收键盘：窗口被激活过又退回后台之后（例如刚做过一次 UI Automation 点击），
+    // 页面已经不在输入状态，字符会整段丢失。整段替换时插入点在哪都无所谓，所以替换时总是补这一次后台点击。
+    if (!has || replace) {
       input::FocusShield shield(top, true);
       web_clicked = input::msg_click(top, pr.px, input::Button::Left, 1).has_value();
       sleep_us(25000);
+      web_focus = !web_clicked ? "click_failed" : has ? "had_focus_clicked" : "clicked";
+    } else {
+      web_focus = "had_focus";
     }
   }
 
@@ -511,6 +518,7 @@ Res<Json> Engine::a_type(const Json& p) {
   if (auto v = apply_via(ladder, p); !v) return std::unexpected(v.error());
   Outcome out = run_ladder(t, replace ? "replace_text" : "type", role, std::move(ladder), st, true, have_pt && !fg);
   if (out.ok) out.inv = inv;
+  if (out.ok && web_focus && out.strategy == "msg_char") out.extra.set("web_focus", web_focus);
   svc.invalidate(top);
   const u64 jid = log_action("type", p, t, out);
   if (!out.ok) return fail(out.code ? out.code : E_INTERNAL, out.err.empty() ? "type failed" : out.err);
@@ -531,14 +539,24 @@ Res<Json> Engine::a_set_value(const Json& p) {
   uia::Service& svc = uia::Service::get();
   store::Inverse inv;
   std::vector<Attempt> ladder;
-  const bool numeric = p["value"].is_num();
+  // MCP 的 schema 把 value 声明为字符串，所以滑块的目标值常以 "70" 这样的字符串到达：
+  // 只有范围、没有文本值的控件（滑块、进度类）上，整串是数字的字符串按数字处理。
+  double num = p["value"].as_num();
+  bool numeric = p["value"].is_num();
+  if (!numeric && p["value"].is_str()) {
+    const std::string s = p["value"].as_str();
+    const char* b = s.data();
+    const char* e = b + s.size();
+    numeric = !s.empty() && std::from_chars(b, e, num).ptr == e && std::isfinite(num);
+  }
+  const bool as_text = p["value"].is_str();
   ladder.push_back({"uia_set", [&]() -> Res<void> {
                       if (pr.node < 0) return fail(E_NOT_FOUND, "no UI Automation element at the point");
                       const auto& n = pr.snap->nodes[static_cast<size_t>(pr.node)];
-                      if (numeric && (n.patterns & uia::P_RANGE)) {
+                      if (numeric && (n.patterns & uia::P_RANGE) && !(as_text && (n.patterns & uia::P_VALUE))) {
                         // 滑块：先记下原值，才能撤销（以前这里写成不可撤销，与 “set_value … Undoable” 的说明不符）。
                         const auto before = svc.get_range(n);
-                        auto r = svc.set_range(n, p["value"].as_num());
+                        auto r = svc.set_range(n, num);
                         if (r && before) {
                           inv.kind = "set_range";
                           inv.data = selector_of(n, t.hwnd);

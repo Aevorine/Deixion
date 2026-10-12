@@ -25,8 +25,8 @@ int run_wait(const std::wstring& cmdline, unsigned timeout_ms, const fs::path& c
 void spawn(const std::wstring& cmdline, const fs::path& cwd);
 
 bool webview2_present();
-// 缺运行库时下载微软的引导程序，验证签名后静默安装。
-bool ensure_webview2(std::wstring* detail);
+// 缺运行库时下载微软的引导程序，验证签名后静默安装。force：运行库在也照做一遍（修复）。
+bool ensure_webview2(std::wstring* detail, bool force = false);
 
 bool make_shortcut(const fs::path& link, const fs::path& target, const std::wstring& args, const fs::path& workdir);
 

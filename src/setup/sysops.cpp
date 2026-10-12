@@ -216,9 +216,9 @@ bool webview2_present() {
   return false;
 }
 
-bool ensure_webview2(std::wstring* detail) {
-  if (webview2_present()) return true;
-  log(L"WebView2 runtime missing, fetching bootstrapper");
+bool ensure_webview2(std::wstring* detail, bool force) {
+  if (!force && webview2_present()) return true;
+  log(force ? L"WebView2 repair requested, fetching bootstrapper" : L"WebView2 runtime missing, fetching bootstrapper");
   wchar_t tmp[MAX_PATH];
   GetTempPathW(MAX_PATH, tmp);
   // 文件名不可预测（同用户其它进程不能提前占位），且校验之后一直持有一个只放行读取的句柄，直到引导程序跑完：

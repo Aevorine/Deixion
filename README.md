@@ -10,6 +10,20 @@ Deixion 是一个 Windows 桌面工具，由三部分组成：
 - **WebView2 桌面界面**：托盘常驻，提供总览、定位、元素、操作、经验、日志、性能、接入、指南、设置等页面。
 - **`deixion-cli`**：命令行工具，内含 MCP（stdio）服务，供 Claude Code 调用。
 
+## 界面
+
+| 总览 | 定位（经纬网格） |
+|---|---|
+| ![总览页](docs/images/zh/overview.png) | ![定位页](docs/images/zh/locate.png) |
+| **元素** | **操作** |
+| ![元素页](docs/images/zh/elements.png) | ![操作页](docs/images/zh/actions.png) |
+| **经验** | **性能** |
+| ![经验页](docs/images/zh/evolve.png) | ![性能页](docs/images/zh/perf.png) |
+
+![设置页](docs/images/zh/settings.png)
+
+截图来自 v1.0.10 的真实程序（便携副本），被操控的是仓库里的测试靶子 `dx-testapp`；由 `node tools/shots.mjs` 经 WebView2 调试端口逐页生成。
+
 ## 目录
 
 - [工作方式](#工作方式)
@@ -55,7 +69,7 @@ Claude Code ──stdio(MCP)──► deixion-cli.exe ──命名管道──�
 
 - **后台模式**下，部分窗口不接收普通窗口消息（例如 XAML / UWP 的内容窗口）。引擎会识别这类窗口，并把 UI Automation 排到消息通道前面。
 - **经典控制台窗口**（`ConsoleWindowClass`，即 conhost 承载的 PowerShell / cmd 窗口）会把输入缓冲区里相邻的相同按键事件合并成一个带重复计数的事件，只发 `WM_CHAR` 时 `--` 会变成 `---`、`ee` 变成 `eee`。向这类窗口输入文字时，引擎在每个字符后补一个按键抬起消息，相邻事件不再相同，也就不会被合并。实测：在 conhost 里的 Windows PowerShell 中输入 `'-- ee --ee aa 11 ;;'`，v1.0.4 三次全部变成 `--- eee ---eee aaa 111 ;;;`，v1.0.5 三次逐字正确。Windows Terminal 窗口不是这类窗口，没有测过。
-- **前台守护**：控件处理点击时通常会自己调用 `SetFocus`，把整个窗口顶到最前。所以后台动作执行期间，Deixion 会持有 Windows 的前台锁（`LockSetForegroundWindow`），目标窗口无法越过你正在使用的窗口。经典 Win32 控件上的 UI Automation 模式是在目标进程内部激活窗口的，会绕过这把锁，所以对这类控件，引擎直接发等价的消息：`Button` 类的按钮、复选框、单选框用 `BM_CLICK`，`Edit` / `RichEdit` 编辑框用 `WM_SETTEXT`。如果某个程序仍然抢到了前台，动作返回后会立刻把你原来的窗口还回去，结果里带一条 `focus` 说明，经验库也会降低该通道的收益，之后更少选它。`status` 会给出计数（`focus_shield`：`locked`、`denied`、`restored`）。窗口状态变化也在这层保护之内：后台模式下的 `restore` / `maximize` / `minimize` 同样先持有前台锁，目标自己激活了就把你原来的窗口还回去；从最小化还原出来的窗口会被放在你当前窗口的正下方，所以它能被操控和截图，却不会盖在你的窗口上。用测试靶子实测（2026-10-09，v1.0.5，隔离模式）：完整 MCP 会话跑了 27 次，同时以亚毫秒间隔轮询系统前台窗口，其中 26 次靶子从未成为前台窗口，有 1 次在靶子刚被拉起时当了约 40 毫秒的前台，随即被还回；之后又连跑 24 次没有再出现。其他框架（WPF、Electron、游戏）尚未实测。
+- **前台守护**：控件处理点击时通常会自己调用 `SetFocus`，把整个窗口顶到最前。所以后台动作执行期间，Deixion 会持有 Windows 的前台锁（`LockSetForegroundWindow`），目标窗口无法越过你正在使用的窗口。经典 Win32 控件上的 UI Automation 模式是在目标进程内部激活窗口的，会绕过这把锁，所以对这类控件，引擎直接发等价的消息：`Button` 类的按钮、复选框、单选框用 `BM_CLICK`，`Edit` / `RichEdit` 编辑框用 `WM_SETTEXT`。如果某个程序仍然抢到了前台，动作返回后会立刻把你原来的窗口还回去，结果里带一条 `focus` 说明，经验库也会降低该通道的收益，之后更少选它。`status` 会给出计数（`focus_shield`：`locked`、`denied`、`restored`）。窗口状态变化也在这层保护之内：后台模式下的 `restore` / `maximize` / `minimize` 同样先持有前台锁，目标自己激活了就把你原来的窗口还回去；从最小化还原出来的窗口会被放在你当前窗口的正下方，所以它能被操控和截图，却不会盖在你的窗口上。用测试靶子实测（2026-10-09，v1.0.5，隔离模式）：完整 MCP 会话跑了 27 次，同时以亚毫秒间隔轮询系统前台窗口，其中 26 次靶子从未成为前台窗口，有 1 次在靶子刚被拉起时当了约 40 毫秒的前台，随即被还回；之后又连跑 24 次没有再出现。其他框架的实测（2026-10-12，v1.0.10，`tools/e2e/frameworks-e2e.mjs`，以当时所在的窗口为基准、同样轮询真实前台）：这几类框架的 UI Automation 动作都在目标进程内部激活窗口，前台锁拦不住，所以**每做一次 UI Automation 动作，目标窗口都会短暂成为前台，随后被还回**。WPF 窗口 5 个动作 5 次，合计约 0.5 到 0.6 秒，单次最长约 0.25 到 0.3 秒；UWP（Windows 计算器）4 次按键 4 到 7 次，合计约 0.15 到 0.55 秒，单次多为 40 到 95 毫秒，出现过一次约 0.35 秒；Electron（VS Code）上 UI Automation 点击约 35 到 65 毫秒，走消息通道的点击与输入不动前台。动作本身都生效（WPF 的计数、文本、复选框、滑块，计算器显示 15，VS Code 搜索框里的文字）。游戏没有测。
 - **允许短暂切前台兜底**（`allow_hop`，默认关）：只有开启后，后台动作才可能短暂把窗口切到前台。关闭时，需要前台的动作会直接返回错误，不会偷偷切换窗口。
 - 单次调用可以用 `mode: "background"` 把前台模式降为后台，但不能在后台模式里用单次调用升为前台。
 
@@ -90,16 +104,16 @@ Meridian 把任意窗口的客户区当成一张单位正方形：横向坐标�
 设客户区左上角为 $(x_0,y_0)$，宽高为 $W\times H$（物理像素），像素 $(x,y)$ 与比例坐标互换如下：
 
 $$
-\lambda=\operatorname{clamp}_{[0,1]}\!\left(\frac{x-x_0+\tfrac12}{W}\right),\qquad
-\varphi=\operatorname{clamp}_{[0,1]}\!\left(\frac{y-y_0+\tfrac12}{H}\right)
+\lambda=\mathrm{clamp}_{[0,1]}\!\left(\frac{x-x_0+\tfrac12}{W}\right),\qquad
+\varphi=\mathrm{clamp}_{[0,1]}\!\left(\frac{y-y_0+\tfrac12}{H}\right)
 $$
 
 $$
-x=x_0+\operatorname{clamp}_{[0,\,W-1]}\!\left(\lfloor \lambda W\rfloor\right),\qquad
-y=y_0+\operatorname{clamp}_{[0,\,H-1]}\!\left(\lfloor \varphi H\rfloor\right)
+x=x_0+\mathrm{clamp}_{[0,\,W-1]}\!\left(\lfloor \lambda W\rfloor\right),\qquad
+y=y_0+\mathrm{clamp}_{[0,\,H-1]}\!\left(\lfloor \varphi H\rfloor\right)
 $$
 
-**格网编码。** 每个 $\lambda$ 和 $\varphi$ 先量化为 16 位整数 $q=\min(\lfloor 65536\cdot v\rfloor,\,65535)$，再把两者的位交织成 Morton 码 $K=(\operatorname{spread}(q_\lambda)\ll 1)\,|\,\operatorname{spread}(q_\varphi)$，左移 3 位得到 35 位的 $K_{35}$。编码 $L$ 位（$1\le L\le 6$）取 $K_{35}$ 的高 $5L$ 位，每 5 位映射为一个字符，字母表为 `0123456789ABCDEFGHJKMNPQRSTVWXYZ`（不含 I、L、O、U；解码时大小写不敏感，并把 I、L 当作 1、O 当作 0）。前缀就是外层格子，可以由粗到细逐级定位。
+**格网编码。** 每个 $\lambda$ 和 $\varphi$ 先量化为 16 位整数 $q=\min(\lfloor 65536\cdot v\rfloor,\,65535)$，再把两者的位交织成 Morton 码 $K=(\mathrm{spread}(q_\lambda)\ll 1)\,|\,\mathrm{spread}(q_\varphi)$，左移 3 位得到 35 位的 $K_{35}$。编码 $L$ 位（$1\le L\le 6$）取 $K_{35}$ 的高 $5L$ 位，每 5 位映射为一个字符，字母表为 `0123456789ABCDEFGHJKMNPQRSTVWXYZ`（不含 I、L、O、U；解码时大小写不敏感，并把 I、L 当作 1、O 当作 0）。前缀就是外层格子，可以由粗到细逐级定位。
 
 **精度。** 第 $L$ 级格子在横向有 $n_x=\lceil 5L/2\rceil$ 位、纵向有 $n_y=\lfloor 5L/2\rfloor$ 位，格子尺寸为 $2^{-n_x}\times 2^{-n_y}$。系统选取满足 $2^{n_x}\ge W$ 且 $2^{n_y}\ge H$ 的最小 $L$，此时一个格子不大于一个像素。按公式推算，1920×1080 的窗口需要 5 位编码（$n_x=13$、$n_y=12$，格子约 0.23 × 0.26 px）。这是公式推算结果，不是实测。
 
@@ -172,7 +186,8 @@ deixion-cli --inproc …                   不连接正在运行的 Deixion，�
 | `/DESKTOP=0\|1` | 桌面快捷方式；未指定时，全新安装为关，已安装过则沿用现状 |
 | `/STARTMENU=0\|1` | 开始菜单快捷方式；未指定时，全新安装为开，已安装过则沿用现状 |
 | `/CLAUDE=0\|1` | 接入 Claude Code；未指定时，全新安装为开，更新则沿用现状（以前接入过才刷新） |
-| `/LOG=<文件>` | 安装日志（默认 `%TEMP%\Deixion-setup.log`） |
+| `/WEBVIEW2=1` | 即使检测到 WebView2 运行时，也重新下载并运行 Microsoft 的引导程序（同样先校验签名） |
+| `/LOG=<文件>` | 安装日志（默认 `%TEMP%\Deixion-setup.log`）；路径含空格时整个参数要加引号 |
 
 退出码：`0` 成功；`3` 安装包损坏；`4` 目录不可写；`5` 写入失败；`6` 无法关闭正在运行的 Deixion；`1` 其他错误。
 
@@ -306,7 +321,8 @@ cmake --build build
 - `deixion-setup.exe`（安装器，输出名 `Deixion-Setup-x64.exe`）只在检测到 Node 时生成，因为安装包的打包脚本 `tools/pack-payload.mjs` 需要 Node 运行。
 - 有 Node 时，`ui/` 目录会被 `tools/pack-ui.mjs` 打包进 exe。没有 Node 时，界面不会打进 exe，需要设置环境变量 `DEIXION_UI_DIR` 指向 `ui/` 目录（仅用于开发）。
 - 上述步骤已在干净的 `build/` 目录上完整执行过（2026-10-09，零警告零错误）。
-- 端到端验证脚本在 `tools/e2e/`（只有端到端，没有单元测试）：`e2e-setup.ps1` 覆盖安装、带占用的升级、损坏安装包的回滚、卸载；`mcp-e2e.mjs` 用真实 MCP 会话驱动测试靶子并核对靶子自己写出的状态，同时检查权限边界；`mcp-stress.mjs <次数> [通道] [chord]` 反复压测文字替换与 `Ctrl+A`；`focus-e2e.ps1 [-Runs N] [-Isolated]` 在跑 MCP 会话的同时用一个高优先级线程轮询系统前台窗口，只要测试靶子成为过前台窗口就判失败；`console-e2e.ps1 [-Runs N] [-Cli 路径]` 拉起一个经典控制台窗口里的 PowerShell，后台连续输入 `-- ee --ee aa 11 ;;` 并核对它收到的内容逐字一致，再对最小化的控制台依次做 restore / maximize / minimize / restore，断言你的窗口始终在前台、控制台从未成为前台（脚本里有一步对照：不经 Deixion、直接 `ShowWindow(SW_RESTORE)` 会抢前台，说明这个断言抓得到抢占），`-Cli` 可换成别的 `deixion-cli.exe` 做新旧对照。`i18n-e2e.mjs` 用真实的 Deixion.exe（便携模式，放在临时目录）经 WebView2 调试端口逐页读界面：英文界面十个页面、所有分段开关、设置页弹窗里不许出现汉字，中文界面保持原样，点语言按钮后整页重载并写进 `settings.json`；`node tools/i18n-check.mjs` 静态检查词典是否覆盖了代码里的每一处中文。`pipe-identity-e2e.ps1 [-SkipSystem]` 先用同账户的假管道服务端作对照（客户端会把请求发过去），再用计划任务以 SYSTEM 账户起同名的假服务端（弹一次 UAC），断言客户端连上后发送 0 字节并回退到进程内引擎；它会让正在运行的 Deixion 暂时退出、结束后重新拉起。运行前需要先完整构建。命名管道每个用户只有一个，所以 `mcp-e2e.mjs`、`mcp-stress.mjs`、`focus-e2e.ps1` 默认会连上已经在运行的 Deixion（比如已安装的旧版本），测的就不是 `build/` 里的新二进制；设环境变量 `DX_E2E_ISOLATED=1`（`focus-e2e.ps1` 用 `-Isolated`）后，它们把 `deixion-cli.exe` 复制到 `.scratch/` 下，放 `portable.flag` 并用 `--inproc` 在自己的进程里跑引擎，不碰正在运行的 Deixion 和真实设置（这时需要真实 `Deixion.exe` 的“自身窗口保护”与“严格启动模式”两段会跳过）；`console-e2e.ps1` 始终隔离。`focus-e2e.ps1` 只结束可执行文件在项目目录下的进程；`e2e-setup.ps1` 会按进程名结束所有 Deixion / deixion-cli（包括已安装的那份），请在开发机上、退出日常使用的 Deixion 之后再跑。
+- 本页的界面截图由 `node tools/shots.mjs` 生成（先 `cmake --build build --target dx-testapp`，并退出正在运行的 Deixion）：它把程序复制到公用目录做便携副本，对测试靶子做几步真实操作，再经 WebView2 调试端口逐页截取中文、英文各一套；会显示本机路径的「接入」「日志」两页不截，性能页的 CPU 型号不入镜。
+- 端到端验证脚本在 `tools/e2e/`（只有端到端，没有单元测试）：`e2e-setup.ps1` 覆盖安装、带占用的升级、损坏安装包的回滚、卸载；`mcp-e2e.mjs` 用真实 MCP 会话驱动测试靶子并核对靶子自己写出的状态，同时检查权限边界；`mcp-stress.mjs <次数> [通道] [chord]` 反复压测文字替换与 `Ctrl+A`；`focus-e2e.ps1 [-Runs N] [-Isolated]` 在跑 MCP 会话的同时用一个高优先级线程轮询系统前台窗口，只要测试靶子成为过前台窗口就判失败；`console-e2e.ps1 [-Runs N] [-Cli 路径]` 拉起一个经典控制台窗口里的 PowerShell，后台连续输入 `-- ee --ee aa 11 ;;` 并核对它收到的内容逐字一致，再对最小化的控制台依次做 restore / maximize / minimize / restore，断言你的窗口始终在前台、控制台从未成为前台（脚本里有一步对照：不经 Deixion、直接 `ShowWindow(SW_RESTORE)` 会抢前台，说明这个断言抓得到抢占），`-Cli` 可换成别的 `deixion-cli.exe` 做新旧对照。`i18n-e2e.mjs` 用真实的 Deixion.exe（便携模式，放在临时目录）经 WebView2 调试端口逐页读界面：英文界面十个页面、所有分段开关、设置页弹窗里不许出现汉字，中文界面保持原样，点语言按钮后整页重载并写进 `settings.json`；`node tools/i18n-check.mjs` 静态检查词典是否覆盖了代码里的每一处中文。`pipe-identity-e2e.ps1 [-SkipSystem]` 先用同账户的假管道服务端作对照（客户端会把请求发过去），再用计划任务以 SYSTEM 账户起同名的假服务端（弹一次 UAC），断言客户端连上后发送 0 字节并回退到进程内引擎；它会让正在运行的 Deixion 暂时退出、结束后重新拉起。`frameworks-e2e.mjs [wpf] [uwp] [electron] [--shots=目录]` 在 WPF 窗口（PowerShell 托管）、UWP（Windows 计算器）、Electron（VS Code，临时配置目录）上各做几步真实操作，逐步核对目标自己的状态，同时轮询真实前台，报告目标成为前台的次数与时长（这是测量值，不算失败）；`--shots` 在每一步之后存一张截图，某一步报成功却没生效时直接看图。运行前需要先完整构建。命名管道每个用户只有一个，所以 `mcp-e2e.mjs`、`mcp-stress.mjs`、`focus-e2e.ps1` 默认会连上已经在运行的 Deixion（比如已安装的旧版本），测的就不是 `build/` 里的新二进制；设环境变量 `DX_E2E_ISOLATED=1`（`focus-e2e.ps1` 用 `-Isolated`）后，它们把 `deixion-cli.exe` 复制到 `.scratch/` 下，放 `portable.flag` 并用 `--inproc` 在自己的进程里跑引擎，不碰正在运行的 Deixion 和真实设置（这时需要真实 `Deixion.exe` 的“自身窗口保护”与“严格启动模式”两段会跳过）；`console-e2e.ps1` 始终隔离。`focus-e2e.ps1` 只结束可执行文件在项目目录下的进程；`e2e-setup.ps1` 会按进程名结束所有 Deixion / deixion-cli（包括已安装的那份），请在开发机上、退出日常使用的 Deixion 之后再跑。
 
 第三方组件只有两个：WebView2 SDK 与 KaTeX，许可证和核验记录见 `third_party/AUDIT.md`。
 
@@ -316,16 +332,21 @@ cmake --build build
 
 ## 已知限制与待确认
 
-- 安装、带占用的升级、损坏安装包的拒绝与回滚、卸载自删已做端到端验证。**WebView2 缺失时的自动补装需要联网且本机已有运行时，未实测**；快捷方式的创建在界面流程中验证过，未逐项核对 `.lnk` 内容。
+- 安装、带占用的升级、损坏安装包的拒绝与回滚、卸载自删已做端到端验证。WebView2 的自动补装：下载引导程序、校验 Microsoft 签名、锁定文件后执行、读取退出码、删除临时文件这条路径，已用 `/WEBVIEW2=1` 在一台已有运行时的机器上实测（2026-10-12：引导程序返回 `0x80040828`，已装的运行时没有变化，安装照常完成）；**起始状态真的缺少运行时的机器仍未实测**。快捷方式的创建在界面流程中验证过，未逐项核对 `.lnk` 内容。
 - `launch` 的护栏与 `batch` 白名单限制的是模型能通过 MCP 工具做什么，它们是护栏，不是沙箱。同一个 Windows 用户下的其他程序（包括模型自己能运行的 shell）可以直接连命名管道或改 `settings.json`，Deixion 防不了这一点；模型被允许启动的程序本身也可能再起一个 shell。
 - 后台模式对部分程序无效，例如不处理窗口消息、也不暴露 UI Automation 模式的程序。失败时会返回原因，可以更换目标，或开启 `allow_hop`。游戏等使用自绘或独占输入的程序是否可用，待确认。
+- WPF、UWP、Electron 上的动作已实测生效，但 UI Automation 动作会让目标窗口短暂成为前台、随后被还回（数字见「两种模式」的前台守护一条）。WPF 窗口（类名 `HwndWrapper[...]`）收到鼠标消息不触发点击，引擎也看不出来（实测 3 次都无效却报成功），1.0.10 起对它把 UI Automation 排在消息通道前面。
 - 对最小化窗口的状态操作只在经典控制台窗口上实测了 restore / maximize / minimize；对最小化窗口做 close / move / resize 的代码路径是放行的，没有单独测。`undo` 回滚窗口状态时没有套前台保护，也没测。
-- 往 Chromium 系窗口（Edge、Electron）的网页编辑器后台输入，已在 Edge 测试页上实测（`contenteditable` / `textarea` / `input`，ASCII、中日韩文字、emoji、换行，追加与替换）；ChatGPT 桌面版本身本版没有实测。浏览器自己弹出的模态框（例如全新配置里的“同步登录”提示）会抢走键盘焦点，期间网页收不到按键。
+- 往 Chromium 系窗口（Edge、Electron）的网页编辑器后台输入，已在 Edge 测试页上实测（`contenteditable` / `textarea` / `input`，ASCII、中日韩文字、emoji、换行，追加与替换）；ChatGPT 桌面版本身本版没有实测。浏览器自己弹出的模态框（例如全新配置里的“同步登录”提示、全新配置的 VS Code 在窗口第一次获得焦点时弹出的欢迎框）会抢走键盘焦点，期间网页收不到按键。后台的 Chromium 窗口被短暂激活又退回后台之后（例如刚做过一次 UI Automation 点击），无障碍树仍报告元素有焦点，页面却不收键盘：整段替换（`replace: true`）在 1.0.10 起总会先在目标元素上补一次后台点击，已在 VS Code 上实测，返回值里的 `web_focus` 写明这一步是怎么处理焦点的；追加输入（不带 `replace`）在这种情形下不补点击（会挪走插入点），是否丢字没有实测。
 - 断电时，最近写入的少量记录可能丢失。进程崩溃时，经验库中尚未落盘的更新最多 11 次。
 - 日志异步写入。进程崩溃时，队列中尚未写出的日志（约 500 ms 内）可能丢失。
 - 界面页面以代码为准，共 10 个页面（总览、定位、元素、操作、经验、日志、性能、接入、指南、设置）。
 
-## 本轮更新：1.0.9
+## 本轮更新：1.0.10
+
+在 WPF、UWP、Electron 上做了端到端实测（`tools/e2e/frameworks-e2e.mjs`），并据此修了三处：WPF 窗口不处理鼠标消息，现在优先走 UI Automation；`set_value` 收到字符串形式的数字（MCP 的 schema 把 `value` 声明为字符串）时，在只有范围、没有文本值的控件（滑块）上按数字处理；往后台的 Chromium 窗口整段替换输入时总是先补一次后台点击。安装器新增 `/WEBVIEW2=1`。元素页的详情栏不再对不可赋值的控件显示“null”。README 加了界面截图，公式里 GitHub 不支持的 `\operatorname` 换成了 `\mathrm`。详见 [CHANGELOG](CHANGELOG.md)。
+
+## 1.0.9
 
 无障碍：分段开关向辅助技术暴露选中项（`role="tab"` + `aria-selected`）；对话框锁住 `Tab` 焦点、关闭后把焦点还给打开它的控件，并带 `aria-modal` 与标题名称；图表带随数据更新的文字概述，截图带替代文字；新增 Windows 对比度主题（`forced-colors`）样式。这些改动没有用读屏软件或真实的对比度主题验证过，现状与限制见 [ACCESSIBILITY.md](ACCESSIBILITY.md)。命名管道身份校验的拒绝分支已用 SYSTEM 账户实测（`tools/e2e/pipe-identity-e2e.ps1`）。CodeQL 现在也扫描 C/C++。详见 [CHANGELOG](CHANGELOG.md)。
 

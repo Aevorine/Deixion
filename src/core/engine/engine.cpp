@@ -101,13 +101,15 @@ Res<void> Engine::gate(const Settings& st) const {
 
 // XAML/WinUI/UWP 的内容窗口不处理 Win32 鼠标键盘消息，向它们发消息会“成功”但没有效果；
 // 先验知识比让经验库去试错更省：这类窗口里消息通道降为兜底，UI Automation 优先。
+// WPF（类名 HwndWrapper[...]）同理：实测发给它的鼠标消息不触发点击，而 UIA 通道因为动了前台会被经验库扣分，
+// 不设先验的话经验库反而会偏向这条无效的通道。
 bool Engine::msg_hostile(HWND top, geo::PointI px) {
   auto bad = [](HWND h) {
     wchar_t c[96] = {};
     GetClassNameW(h, c, 96);
     const std::wstring_view v(c);
     return v.find(L"ApplicationFrameWindow") != v.npos || v.find(L"InputSite") != v.npos || v.find(L"DesktopChildSiteBridge") != v.npos ||
-           v.find(L"DesktopWindowContentBridge") != v.npos || v.find(L"CoreWindow") != v.npos;
+           v.find(L"DesktopWindowContentBridge") != v.npos || v.find(L"CoreWindow") != v.npos || v.starts_with(L"HwndWrapper[");
   };
   if (!top) return false;
   if (bad(top)) return true;

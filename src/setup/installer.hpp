@@ -18,6 +18,7 @@ struct Options {
   bool purge{false};
   bool update{false};
   bool relaunch{false};
+  bool webview2{false};  // 修复：检测到运行库也照常下载、验签并运行引导程序
 };
 
 enum class Fail { None, Dir, Payload, Write, Busy };

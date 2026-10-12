@@ -159,7 +159,7 @@ Result install(const Payload& pl, const Options& o, const Progress& prog) {
   sys::log(std::format(L"committed {} files to {}", sw.size(), o.dir.wstring()));
 
   step(80, StRegister);
-  if (!sys::ensure_webview2(&res.note) && res.note.empty()) res.note = L"webview2";
+  if (!sys::ensure_webview2(&res.note, o.webview2) && res.note.empty()) res.note = L"webview2";
   if (sys::webview2_present()) res.note.clear();
 
   const fs::path app = o.dir / L"Deixion.exe";

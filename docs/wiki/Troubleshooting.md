@@ -1,7 +1,7 @@
 # Troubleshooting / 常见问题
 
 **The window is blank or says it needs WebView2.**
-The Microsoft WebView2 runtime is missing. Install it from <https://go.microsoft.com/fwlink/p/?LinkId=2124703>. Until then the tray menu, hotkeys, MCP and the CLI keep working.
+The Microsoft WebView2 runtime is missing. Install it from <https://go.microsoft.com/fwlink/p/?LinkId=2124703>. Running the Deixion installer again also fetches it when no runtime is detected; `/WEBVIEW2=1` forces that step even when one is detected (that forced path was only exercised on a machine that already had the runtime, see [#6](https://github.com/Aevorine/Deixion/issues/6)). Until then the tray menu, hotkeys, MCP and the CLI keep working.
 
 **Windows SmartScreen warns about the installer.**
 The installer is not code-signed yet (tracked in [#5](https://github.com/Aevorine/Deixion/issues/5)). Compare the file with `SHA256SUMS.txt` on the Releases page.
@@ -10,7 +10,10 @@ The installer is not code-signed yet (tracked in [#5](https://github.com/Aevorin
 Restart Claude Code after installing or updating. On the **Claude Code** page check that the MCP server path points to the current install (“Path outdated” means it does not) and click *Connect*. If the `claude` command is not found, the page shows the JSON and command line to register by hand.
 
 **An action failed in background mode.**
-Some programs ignore window messages or expose no UI Automation patterns. The failure message says why. You can target another element, or enable `allow_hop` so Deixion may hop to the foreground briefly as a last resort. Behaviour on WPF, Electron, UWP and games is still being verified ([#4](https://github.com/Aevorine/Deixion/issues/4)).
+Some programs ignore window messages or expose no UI Automation patterns. The failure message says why. You can target another element, or enable `allow_hop` so Deixion may hop to the foreground briefly as a last resort. WPF, UWP and Electron were measured in 1.0.10 ([#4](https://github.com/Aevorine/Deixion/issues/4)): actions take effect, and each UI Automation action makes the target the foreground window for a moment (tens of milliseconds on UWP and Electron, up to about 0.3 s on WPF) before your window is put back. Games were not measured.
+
+**Text typed into an Electron or browser window in the background did not arrive.**
+Look at a screenshot first: a modal the program raised by itself (a sign-in or sync prompt, the welcome dialog of a fresh VS Code profile) takes the keys. Otherwise use `replace: true`, which from 1.0.10 always clicks the field in the background first; the result's `web_focus` says how focus was handled.
 
 **`launch` was refused.**
 By design: `launch` will not start command shells, script hosts or Deixion's own programs unless you enable `allow_shell_launch`, and with `launch_strict` it only starts programs on your list (Settings → Allowed programs). This is a guard rail, not a sandbox.

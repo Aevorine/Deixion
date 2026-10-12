@@ -64,8 +64,16 @@ async function connect(page) {
     if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.text + ' ' + (r.result.exceptionDetails.exception?.description || ''));
     return r.result?.result?.value;
   };
+  // 值作为参数传给页面里的函数，不拼进要执行的代码
+  const call = async (fn, ...args) => {
+    const g = await send('Runtime.evaluate', { expression: 'globalThis' });
+    const r = await send('Runtime.callFunctionOn', { objectId: g.result?.result?.objectId, functionDeclaration: fn, arguments: args.map((value) => ({ value })), awaitPromise: true, returnByValue: true });
+    if (r.error) throw new Error(r.error.message);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.text + ' ' + (r.result.exceptionDetails.exception?.description || ''));
+    return r.result?.result?.value;
+  };
   await send('Runtime.enable');
-  return { ws, ev };
+  return { ws, ev, call };
 }
 
 const stopAll = (child) => {
@@ -76,7 +84,8 @@ const stopAll = (child) => {
 const dir = stage();
 const { child, page } = await launch(dir);
 const c = await connect(page);
-const rpc = (m, p = {}) => c.ev(`import('./js/core/bridge.js').then((b) => b.call(${JSON.stringify(m)}, ${JSON.stringify(p)})).then((r) => ({ ok: true, r }), (e) => ({ ok: false, msg: String(e.message), code: e.code }))`);
+const BRIDGE_CALL = `function (m, p) { return import(new URL('./js/core/bridge.js', document.baseURI).href).then((b) => b.call(m, p)).then((r) => ({ ok: true, r }), (e) => ({ ok: false, msg: String(e.message), code: e.code })); }`;
+const rpc = (m, p = {}) => c.call(BRIDGE_CALL, m, p);
 const state = async () => (await rpc('update.state')).r;
 async function until(pred, ms, step = 400) {
   const t0 = Date.now();

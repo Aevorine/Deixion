@@ -4,6 +4,19 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-10-12
+
+Maintenance release. The engine, the UI and the installer behave as in 1.0.7.
+
+### Fixed
+- The application manifest still declared assembly version `1.0.5.0` in 1.0.6 and 1.0.7. It is now generated from the CMake project version together with the resource version, so the two cannot drift apart.
+
+### Security
+- `tools/e2e/updater-e2e.mjs` passed bridge call arguments by pasting `JSON.stringify` output into evaluated code (CodeQL `js/bad-code-sanitization`, two alerts). The values now travel as arguments of `Runtime.callFunctionOn`. This is test tooling and is not shipped in the installer.
+
+### Changed
+- The wiki is published from `docs/wiki/`; the release steps there name `CMakeLists.txt` as the only place to bump the version.
+
 ## [1.0.7] - 2026-10-10
 
 ### Fixed
@@ -99,11 +112,12 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 ### Security
 - `batch` is limited to the actions and queries MCP already exposes; input actions cannot operate Deixion's own windows; the pipe client verifies the server runs as the current account.
 
-[1.0.5]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.5
-[1.0.6]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.6
+[1.0.8]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.8
 [1.0.7]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.7
-[1.0.4]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.4
-[1.0.3]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.3
-[1.0.2]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.2
+[1.0.6]: https://github.com/Aevorine/Deixion/commit/97147a5
+[1.0.5]: https://github.com/Aevorine/Deixion/commit/3c770c9
+[1.0.4]: https://github.com/Aevorine/Deixion/commit/b1d7eae
+[1.0.3]: https://github.com/Aevorine/Deixion/commit/5a878eb
+[1.0.2]: https://github.com/Aevorine/Deixion/commit/7747ad5
 [1.0.1]: https://github.com/Aevorine/Deixion/commit/afe5468
 [1.0.0]: https://github.com/Aevorine/Deixion/commit/634c489

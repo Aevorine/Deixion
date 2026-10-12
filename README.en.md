@@ -326,7 +326,11 @@ There are only two third-party components: the WebView2 SDK and KaTeX. Their lic
 - Logging is asynchronous. If the process crashes, log lines still in the queue (up to about 500 ms) may be lost.
 - The page list follows the code: there are 10 pages (Overview, Locate, Elements, Actions, Experience, Logs, Performance, Claude Code, Guide, Settings).
 
-## Update: 1.0.7
+## Update: 1.0.8
+
+A maintenance release: the engine, the UI and the installer behave as in 1.0.7. The application manifest had kept assembly version `1.0.5.0`; it is now generated from the CMake project version together with the resource version, so a release bumps `CMakeLists.txt` only. `tools/e2e/updater-e2e.mjs` no longer pastes arguments into evaluated code and passes them as `Runtime.callFunctionOn` arguments instead (two CodeQL `js/bad-code-sanitization` alerts; test tooling, not shipped in the installer). The wiki is published from `docs/wiki/`. See the [CHANGELOG](CHANGELOG.md).
+
+## 1.0.7
 
 Background typing into the web editors of Chromium-based windows (Edge, Electron): keyboard messages go to the top-level window, a background click gives the page its focus first, Enter / Tab / Space are sent as real key events, and replace is select-all plus typing. The Chromium accessibility tree is built asynchronously, so the first query waits briefly for the web document and `find` retries for up to 1.5 s. A newline typed into a console now commits the command.
 

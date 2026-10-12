@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(Deixion VERSION 1.0.7 LANGUAGES C CXX RC)
+project(Deixion VERSION 1.0.8 LANGUAGES C CXX RC)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,6 +23,8 @@ foreach(f ${DX_PLACEHOLDERS})
   endif()
 endforeach()
 
+# 清单里的程序集版本跟随 PROJECT_VERSION，不再手改。
+configure_file(res/app.manifest.in ${DX_GEN}/app.manifest @ONLY)
 set(DX_INTERNAL Deixion)
 set(DX_ORIGINAL Deixion.exe)
 configure_file(res/app.rc.in ${DX_GEN}/app.rc @ONLY)

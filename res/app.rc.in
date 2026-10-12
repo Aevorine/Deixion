@@ -2,7 +2,7 @@
 #include <winver.h>
 
 1 ICON "@DX_ROOT@/brand/icon/appicon.ico"
-1 RT_MANIFEST "@DX_ROOT@/res/app.manifest"
+1 RT_MANIFEST "@DX_GEN@/app.manifest"
 
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0

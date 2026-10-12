@@ -41,4 +41,4 @@ Chinese is the source language. Wrap strings in `t('中文')`; add the English t
 
 ## Releases
 
-The updater's contract is fixed: assets `Deixion-Setup-x64.exe` and `SHA256SUMS.txt`, installer flags `/S /UPDATE /RELAUNCH`. Bump the version in `CMakeLists.txt`, `res/app.manifest` and `tools/devserver.mjs`; build; `node tools/release.mjs pack`; `gh release create vX.Y.Z dist/Deixion-Setup-x64.exe dist/SHA256SUMS.txt`; `node tools/release.mjs prune 2` keeps the two newest releases.
+The updater's contract is fixed: assets `Deixion-Setup-x64.exe` and `SHA256SUMS.txt`, installer flags `/S /UPDATE /RELAUNCH`. Bump the version in `CMakeLists.txt` (the resource version and the manifest are generated from it); build; `node tools/release.mjs pack`; `gh release create vX.Y.Z dist/Deixion-Setup-x64.exe dist/SHA256SUMS.txt`; `node tools/release.mjs prune 2` keeps the two newest releases.

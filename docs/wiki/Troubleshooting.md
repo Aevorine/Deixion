@@ -27,5 +27,8 @@ Settings → Data folder → *Open*: `%LOCALAPPDATA%\Deixion` (`data` next to th
 **How do I uninstall?**
 Apps → Deixion, or run `uninstall.exe` in the install folder. It also removes the MCP registration and the skill. Silent: `Deixion-Setup-x64.exe /S /UNINSTALL [/PURGE]`.
 
+**Keyboard, screen readers, contrast.**
+What the window supports and what it does not yet is in the [accessibility statement](https://github.com/Aevorine/Deixion/blob/main/ACCESSIBILITY.md).
+
 **Something else.**
 Open an [issue](https://github.com/Aevorine/Deixion/issues/new/choose) with the version, the Windows version, the exact tool call and the relevant log lines. Report vulnerabilities privately (see the [security policy](https://github.com/Aevorine/Deixion/security/policy)).

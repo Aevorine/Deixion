@@ -4,6 +4,9 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+### Added
+- `ACCESSIBILITY.md`: what the window supports (keyboard, visible focus, names for icon buttons, reduced motion), what is not there yet (no screen-reader run, no high-contrast styles, dialogs do not trap focus) and how to report a barrier.
+
 ## [1.0.8] - 2026-10-12
 
 Maintenance release. The engine, the UI and the installer behave as in 1.0.7.

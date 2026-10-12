@@ -64,7 +64,7 @@ jobs:
           if (-not (Test-Path build/Deixion-Setup-x64.exe)) { throw 'Deixion-Setup-x64.exe was not built' }
           $h = (Get-FileHash build/Deixion-Setup-x64.exe -Algorithm SHA256).Hash.ToLower()
           "$h  Deixion-Setup-x64.exe" | Tee-Object -FilePath build/SHA256SUMS.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Deixion-build-${{ github.sha }}
           path: |

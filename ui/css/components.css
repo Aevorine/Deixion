@@ -157,3 +157,22 @@ input[type="range"]::-webkit-slider-runnable-track { background: linear-gradient
 .math.block { display: block; text-align: center; padding: var(--sp-3) 0; }
 .math.block .katex-display { margin: 0; }
 .katex { font-size: 1.08em; }
+
+/* Windows 对比度主题：背景色、阴影、渐变都会被系统换掉，靠它们表达的边界与状态在这里改用系统色和边框 */
+@media (forced-colors: active) {
+  :focus-visible, .input:focus, .select:focus { outline: 2px solid CanvasText; outline-offset: 2px; }
+  .nav, .seg button, .tabs button, .chip, .kbd, .tip, .bar { border: 1px solid ButtonBorder; }
+  .btn.primary { border: 2px solid ButtonText; }
+  .nav.on, .seg button.on, .tabs button.on, .btn.on, .app-item.on, .tbl tbody tr.sel { background: Highlight; color: HighlightText; }
+  .nav.on::before { background: Highlight; }
+  .nav .badge { background: CanvasText; border-color: Canvas; }
+  .switch { border: 1px solid ButtonText; background: ButtonFace; }
+  .switch::after { left: 2px; top: 2px; background: ButtonText; }
+  .switch[aria-checked="true"] { background: Highlight; border-color: Highlight; }
+  .switch[aria-checked="true"]::after { background: HighlightText; }
+  .select { appearance: auto; padding-right: var(--sp-3); }
+  input[type="range"]::-webkit-slider-runnable-track { forced-color-adjust: none; background: linear-gradient(to right, Highlight var(--fill, 0%), GrayText var(--fill, 0%)); }
+  input[type="range"]::-webkit-slider-thumb { forced-color-adjust: none; background: ButtonText; box-shadow: none; }
+  .bar > i, .bar.ok > i, .bar.warn > i, .bar.danger > i { background: Highlight; }
+  .dot { forced-color-adjust: none; outline: 1px solid CanvasText; }
+}

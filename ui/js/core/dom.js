@@ -110,9 +110,9 @@ export function asyncBtn(opts, fn) {
 
 export function seg({ options, value, onChange, big }) {
   const root = h('div', { class: 'seg' + (big ? ' big' : ''), role: 'tablist' });
-  const set = (v) => { for (const b of root.children) b.classList.toggle('on', b.dataset.v === String(v)); };
+  const set = (v) => { for (const b of root.children) { const on = b.dataset.v === String(v); b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); } };
   for (const o of options) {
-    root.append(h('button', { type: 'button', 'data-v': o.value, tip: o.tip, class: o.value === value ? 'on' : '', onClick: () => { set(o.value); onChange && onChange(o.value); } }, o.icon ? icon(o.icon) : null, o.label ? h('span', null, o.label) : null));
+    root.append(h('button', { type: 'button', role: 'tab', 'aria-selected': String(o.value === value), 'data-v': o.value, tip: o.tip, class: o.value === value ? 'on' : '', onClick: () => { set(o.value); onChange && onChange(o.value); } }, o.icon ? icon(o.icon) : null, o.label ? h('span', null, o.label) : null));
   }
   root.set = set;
   return root;
@@ -183,12 +183,23 @@ export function toast(text, kind = 'info', ms = 3600) {
 }
 
 // —— 对话框（原生对话框在宿主里被禁用）——
+let dlgSeq = 0;
 export function dialog({ title, body, actions }) {
   return new Promise((resolve) => {
-    const close = (v) => { scrim.remove(); document.removeEventListener('keydown', onKey, true); resolve(v); };
-    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(null); } };
+    const opener = document.activeElement;
+    const close = (v) => { scrim.remove(); document.removeEventListener('keydown', onKey, true); if (opener?.isConnected) opener.focus(); resolve(v); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); close(null); return; }
+      if (e.key !== 'Tab') return;
+      // 焦点留在对话框里：到头后首尾相接
+      const stops = [...dlg.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')].filter((x) => !x.disabled && x.tabIndex >= 0 && x.getClientRects().length);
+      const at = stops.indexOf(document.activeElement);
+      if (at < 0 || (e.shiftKey ? at === 0 : at === stops.length - 1)) { e.preventDefault(); stops.at(e.shiftKey ? -1 : 0)?.focus(); }
+    };
     const bar = h('div', { class: 'ft' }, actions.map((a) => btn({ label: a.label, kind: a.kind, onClick: () => close(a.value) })));
-    const scrim = h('div', { class: 'scrim', onClick: (e) => { if (e.target === scrim) close(null); } }, h('div', { class: 'dlg', role: 'dialog' }, title ? h('div', { class: 'hd' }, title) : null, h('div', { class: 'bd' }, body), bar));
+    const hd = title ? h('div', { class: 'hd', id: `dlg-hd-${++dlgSeq}` }, title) : null;
+    const dlg = h('div', { class: 'dlg', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': hd?.id }, hd, h('div', { class: 'bd' }, body), bar);
+    const scrim = h('div', { class: 'scrim', onClick: (e) => { if (e.target === scrim) close(null); } }, dlg);
     document.body.append(scrim);
     document.addEventListener('keydown', onKey, true);
     scrim.querySelector('.btn.primary, .btn')?.focus();

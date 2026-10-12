@@ -18,4 +18,5 @@ export default {
   '重置': 'Reset',
   '已重置': 'Reset done',
   '策略地形（横轴耗时 · 纵轴成功率 · 圆越大样本越多）': 'Strategy terrain (x: latency · y: success rate · size: samples)',
+  '策略地形：{n} 条通道记录，横轴耗时，纵轴成功率': 'Strategy terrain: {n} channel record, x axis latency, y axis success rate||Strategy terrain: {n} channel records, x axis latency, y axis success rate',
 };

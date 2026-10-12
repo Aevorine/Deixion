@@ -4,8 +4,19 @@ All notable changes to Deixion. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-10-12
+
 ### Added
-- `ACCESSIBILITY.md`: what the window supports (keyboard, visible focus, names for icon buttons, reduced motion), what is not there yet (no screen-reader run, no high-contrast styles, dialogs do not trap focus) and how to report a barrier.
+- `ACCESSIBILITY.md`: what the window supports, what is not there yet and how to report a barrier.
+- Segmented switches expose the selected option: each option is `role="tab"` with `aria-selected`.
+- Dialogs keep `Tab` focus inside, return focus to the control that opened them when they close, and carry `aria-modal` and a name taken from their title.
+- Charts are `role="img"` with a text summary that follows the data (series name, latest, lowest and highest value); screenshots have alternative text.
+- Styles for Windows contrast themes (`forced-colors`): selected and checked states, control borders, sliders and the focus ring use system colours. They apply only under a contrast theme and were not verified under one; no screen reader was run either.
+- `tools/e2e/pipe-identity-e2e.ps1`: the rejection branch of the named-pipe identity check, end to end. A fake server run by the SYSTEM account takes the pipe name; the client connects, sends 0 bytes and falls back to its in-process engine. A same-account fake server is the control and receives the request.
+
+### Changed
+- CodeQL default setup also analyses C/C++; the first analysis of `main` reported no alerts.
+- CI actions: `actions/checkout` v7, `actions/setup-node` v7, `actions/upload-artifact` v6.
 
 ## [1.0.8] - 2026-10-12
 
@@ -115,8 +126,9 @@ Maintenance release. The engine, the UI and the installer behave as in 1.0.7.
 ### Security
 - `batch` is limited to the actions and queries MCP already exposes; input actions cannot operate Deixion's own windows; the pipe client verifies the server runs as the current account.
 
+[1.0.9]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.9
 [1.0.8]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.8
-[1.0.7]: https://github.com/Aevorine/Deixion/releases/tag/v1.0.7
+[1.0.7]: https://github.com/Aevorine/Deixion/commit/56ea236
 [1.0.6]: https://github.com/Aevorine/Deixion/commit/97147a5
 [1.0.5]: https://github.com/Aevorine/Deixion/commit/3c770c9
 [1.0.4]: https://github.com/Aevorine/Deixion/commit/b1d7eae

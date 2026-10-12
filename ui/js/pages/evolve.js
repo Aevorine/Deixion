@@ -52,7 +52,7 @@ registerPage({
         const c = cssColor(colorOf(a.strategy));
         g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = alpha(c, 0.35); g.fill(); g.strokeStyle = c; g.lineWidth = 1.6; g.stroke();
       }
-    });
+    }, () => t('策略地形：{n} 条通道记录，横轴耗时，纵轴成功率', { n: arms.filter((a) => !app || a.app === app).length }));
 
     function groupBy(list, keyf) {
       const m = new Map();

@@ -34,6 +34,7 @@ No unit tests. Run the real thing and look at the result:
 - `tools/e2e/e2e-setup.ps1`: install, upgrade over locked files, damaged-package rollback, uninstall. It sets `DEIXION_NO_CLAUDE=1` so the program leaves your Claude Code registration and skill alone, and it backs up and restores the real install's uninstall entry.
 - `tools/e2e/i18n-e2e.mjs`: the real app in both languages through the WebView2 debugging port. Pick a port outside `netsh int ipv4 show excludedportrange protocol=tcp`.
 - `node tools/i18n-check.mjs`: every Chinese string in the code has an English entry.
+- `tools/e2e/pipe-identity-e2e.ps1`: a fake pipe server run by SYSTEM (scheduled task, one UAC prompt) must receive 0 bytes from the client; a same-account fake server is the control. It asks a running Deixion to quit and starts it again.
 
 ## Translations
 

@@ -1,17 +1,27 @@
 // 轻量画布图表：折线、迷你趋势。只在数据变化时重画，随容器尺寸与主题自动重绘。
 import { cssColor, alpha } from './theme.js';
 import { bus } from './bus.js';
+import { t } from './i18n.js';
 
 const hosts = new Set();
 bus.on('theme', () => hosts.forEach((h) => h.redraw()));
 
-/** 绑定画布与绘制函数；返回 { redraw }。 */
-export function chartHost(canvas, draw) {
+/** 一条序列的文字概述（给读屏用）：名称 + 最新、最低、最高。 */
+function summary(name, v, fmt) {
+  if (!v || !v.length) return t('{name}：暂无数据', { name });
+  return t('{name}：最新 {last}，最低 {lo}，最高 {hi}', { name, last: fmt(v.at(-1)), lo: fmt(Math.min(...v)), hi: fmt(Math.max(...v)) });
+}
+const plain = (v) => +(+v).toFixed(2);
+
+/** 绑定画布与绘制函数；返回 { redraw }。label 返回画布内容的文字说明，每次重画时更新。 */
+export function chartHost(canvas, draw, label) {
   let raf = 0;
+  if (label) canvas.setAttribute('role', 'img');
   const host = {
     redraw() {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
+        if (label) canvas.setAttribute('aria-label', label());
         const r = canvas.getBoundingClientRect();
         if (r.width < 2 || r.height < 2) return;
         const dpr = devicePixelRatio || 1;
@@ -29,8 +39,8 @@ export function chartHost(canvas, draw) {
   return host;
 }
 
-/** 迷你趋势：values 为数组。 */
-export function sparkline(canvas, getValues, { color = '--c-accent', min, max } = {}) {
+/** 迷你趋势：values 为数组。name 是这条序列的名称，给了就带文字说明。 */
+export function sparkline(canvas, getValues, { color = '--c-accent', min, max, name, fmt = plain } = {}) {
   return chartHost(canvas, (g, w, h) => {
     const v = getValues();
     if (!v || v.length < 2) return;
@@ -46,10 +56,10 @@ export function sparkline(canvas, getValues, { color = '--c-accent', min, max } 
     const grad = g.createLinearGradient(0, 0, 0, h);
     grad.addColorStop(0, alpha(c, 0.28)); grad.addColorStop(1, alpha(c, 0));
     g.fillStyle = grad; g.fill();
-  });
+  }, name ? () => summary(name, getValues(), fmt) : null);
 }
 
-/** 多序列折线：series=[{values,color}]，yFmt 格式化纵轴刻度。 */
+/** 多序列折线：series=[{values,color,name}]，yFmt 格式化纵轴刻度；有 name 的序列进文字说明。 */
 export function lineChart(canvas, getSeries, { min = 0, max, yFmt = (v) => v, rows = 4 } = {}) {
   return chartHost(canvas, (g, w, h) => {
     const series = getSeries();
@@ -87,5 +97,5 @@ export function lineChart(canvas, getSeries, { min = 0, max, yFmt = (v) => v, ro
         g.fillStyle = grad; g.fill();
       }
     }
-  });
+  }, () => getSeries().filter((s) => s.name).map((s) => summary(s.name, s.values, yFmt)).join('; '));
 }

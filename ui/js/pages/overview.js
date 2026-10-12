@@ -82,9 +82,9 @@ function kpis() {
   const succ = mk('ok', t('成功率'));
   const lat = mk('clock', t('点击耗时中位数'));
   const exp = mk('evolve', t('自学习经验'));
-  sparkline(calls.cv, () => state.series.ext, { color: '--c-accent' });
-  const cpuSpark = sparkline(succ.cv, () => state.series.cpu, { color: '--c-ok', min: 0 });
-  const memSpark = sparkline(lat.cv, () => state.series.mem, { color: '--c-accent-2' });
+  sparkline(calls.cv, () => state.series.ext, { color: '--c-accent', name: t('外部调用') });
+  const cpuSpark = sparkline(succ.cv, () => state.series.cpu, { color: '--c-ok', min: 0, name: t('CPU 占用') });
+  const memSpark = sparkline(lat.cv, () => state.series.mem, { color: '--c-accent-2', name: t('内存') });
   const paint = () => {
     const st = state.status, pf = state.perf;
     if (!st) return;

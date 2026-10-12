@@ -92,4 +92,7 @@ export default {
   '等界面安静 / 窗口出现 / 控件出现': 'Wait for the UI to settle / a window to appear / an element to appear',
   '一次发多步，省往返': 'Send many steps at once to save round trips',
   '撤销已做的操作': 'Undo completed actions',
+  '{name}：暂无数据': '{name}: no data yet',
+  '{name}：最新 {last}，最低 {lo}，最高 {hi}': '{name}: latest {last}, lowest {lo}, highest {hi}',
+  '目标的截图': 'Screenshot of the target',
 };

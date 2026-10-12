@@ -49,7 +49,7 @@ registerPage({
     const catBox = h('div', { class: 'rows' });
     const perMin = [];
     const cv = h('canvas', { class: 'chart', style: { height: '90px' } });
-    const spark = sparkline(cv, () => perMin, { color: '--c-accent', min: 0 });
+    const spark = sparkline(cv, () => perMin, { color: '--c-accent', min: 0, name: t('每分钟条数（近 30 分钟）') });
     function paintStats() {
       const cnt = { debug: 0, info: 0, warn: 0, error: 0 };
       const cats = new Map();

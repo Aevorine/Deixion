@@ -21,8 +21,8 @@ registerPage({
 
     const cv1 = h('canvas', { class: 'chart' });
     const cv2 = h('canvas', { class: 'chart' });
-    const c1 = lineChart(cv1, () => [{ values: state.series.cpu, color: '--c-accent', fill: true, len: 150 }, { values: state.series.ext, color: '--c-warn', len: 150 }], { yFmt: (v) => v.toFixed(v < 10 ? 1 : 0) });
-    const c2 = lineChart(cv2, () => [{ values: state.series.mem, color: '--c-ok', fill: true, len: 150 }], { yFmt: (v) => `${v.toFixed(0)}M` });
+    const c1 = lineChart(cv1, () => [{ values: state.series.cpu, color: '--c-accent', fill: true, len: 150, name: t('CPU 占用') }, { values: state.series.ext, color: '--c-warn', len: 150, name: t('外部调用') }], { yFmt: (v) => v.toFixed(v < 10 ? 1 : 0) });
+    const c2 = lineChart(cv2, () => [{ values: state.series.mem, color: '--c-ok', fill: true, len: 150, name: t('内存') }], { yFmt: (v) => `${v.toFixed(0)}M` });
 
     const tbody = h('tbody');
     const table = h('table', { class: 'tbl' }, h('thead', null, h('tr', null, [t('方法'), t('次数'), t('中位 P50'), 'P90', 'P99', t('最小'), t('最大'), t('平均'), t('分布')].map((c, i) => h('th', { class: i && i < 8 ? 'num' : '' }, c)))), tbody);

@@ -1,5 +1,6 @@
 // 截图视图：图像按比例居中铺满容器，上面叠一层按百分比定位的图层（框、点、网格都画在图层里）。
 import { h } from './dom.js';
+import { t } from './i18n.js';
 
 export function shotView() {
   const img = h('img', { class: 'shot-img', alt: '', draggable: 'false' });
@@ -21,6 +22,7 @@ export function shotView() {
     img,
     set(mime, b64, w, hgt) {
       img.src = `data:${mime};base64,${b64}`;
+      img.alt = t('目标的截图');  // 有图之后才给替代文字，没图时不显示任何字
       ratio = w / hgt;
       shot.style.display = '';
       fit();

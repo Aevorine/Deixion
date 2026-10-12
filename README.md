@@ -130,7 +130,7 @@ Claude Code 通过 `deixion-cli mcp` 调用以下 18 个工具。`window` 可以
 
 动作参数写进日志与回滚记录时，输入的文字只记字符数。回滚 `set_value` 时需要保存旧值，这部分数据保存在回滚日志中。
 
-**权限边界**：`batch` 的每一步只能是上表中的动作与查询方法；修改设置、清空日志、重置经验库、紧急停止这类用户专属的控制不能经由 `batch` 调用，所以暂停与「允许短暂切前台」这两个开关只有用户本人能改。输入类动作（点击、输入、按键、滚动、拖拽、设值）也不能操作 Deixion 自己的窗口，否则模型可以直接点界面里的开关；截图与读取元素这类被动查询不受限制。命名管道客户端连上后会核对服务端进程的账户，与当前账户不一致就断开，防止多用户机器上别的账户抢先建同名管道。该核对的失败分支需要第二个 Windows 账户才能验证，尚未实测。
+**权限边界**：`batch` 的每一步只能是上表中的动作与查询方法；修改设置、清空日志、重置经验库、紧急停止这类用户专属的控制不能经由 `batch` 调用，所以暂停与「允许短暂切前台」这两个开关只有用户本人能改。输入类动作（点击、输入、按键、滚动、拖拽、设值）也不能操作 Deixion 自己的窗口，否则模型可以直接点界面里的开关；截图与读取元素这类被动查询不受限制。命名管道客户端连上后会核对服务端进程的账户，与当前账户不一致就断开，防止多用户机器上别的账户抢先建同名管道。该核对的失败分支已实测（`tools/e2e/pipe-identity-e2e.ps1`）：由 SYSTEM 账户起一个同名的假服务端，客户端连上后一个字节都不发，改用进程内引擎；同账户的假服务端作对照，会收到请求。
 
 ## 命令行 deixion-cli
 
@@ -306,7 +306,7 @@ cmake --build build
 - `deixion-setup.exe`（安装器，输出名 `Deixion-Setup-x64.exe`）只在检测到 Node 时生成，因为安装包的打包脚本 `tools/pack-payload.mjs` 需要 Node 运行。
 - 有 Node 时，`ui/` 目录会被 `tools/pack-ui.mjs` 打包进 exe。没有 Node 时，界面不会打进 exe，需要设置环境变量 `DEIXION_UI_DIR` 指向 `ui/` 目录（仅用于开发）。
 - 上述步骤已在干净的 `build/` 目录上完整执行过（2026-10-09，零警告零错误）。
-- 端到端验证脚本在 `tools/e2e/`（只有端到端，没有单元测试）：`e2e-setup.ps1` 覆盖安装、带占用的升级、损坏安装包的回滚、卸载；`mcp-e2e.mjs` 用真实 MCP 会话驱动测试靶子并核对靶子自己写出的状态，同时检查权限边界；`mcp-stress.mjs <次数> [通道] [chord]` 反复压测文字替换与 `Ctrl+A`；`focus-e2e.ps1 [-Runs N] [-Isolated]` 在跑 MCP 会话的同时用一个高优先级线程轮询系统前台窗口，只要测试靶子成为过前台窗口就判失败；`console-e2e.ps1 [-Runs N] [-Cli 路径]` 拉起一个经典控制台窗口里的 PowerShell，后台连续输入 `-- ee --ee aa 11 ;;` 并核对它收到的内容逐字一致，再对最小化的控制台依次做 restore / maximize / minimize / restore，断言你的窗口始终在前台、控制台从未成为前台（脚本里有一步对照：不经 Deixion、直接 `ShowWindow(SW_RESTORE)` 会抢前台，说明这个断言抓得到抢占），`-Cli` 可换成别的 `deixion-cli.exe` 做新旧对照。`i18n-e2e.mjs` 用真实的 Deixion.exe（便携模式，放在临时目录）经 WebView2 调试端口逐页读界面：英文界面十个页面、所有分段开关、设置页弹窗里不许出现汉字，中文界面保持原样，点语言按钮后整页重载并写进 `settings.json`；`node tools/i18n-check.mjs` 静态检查词典是否覆盖了代码里的每一处中文。运行前需要先完整构建。命名管道每个用户只有一个，所以 `mcp-e2e.mjs`、`mcp-stress.mjs`、`focus-e2e.ps1` 默认会连上已经在运行的 Deixion（比如已安装的旧版本），测的就不是 `build/` 里的新二进制；设环境变量 `DX_E2E_ISOLATED=1`（`focus-e2e.ps1` 用 `-Isolated`）后，它们把 `deixion-cli.exe` 复制到 `.scratch/` 下，放 `portable.flag` 并用 `--inproc` 在自己的进程里跑引擎，不碰正在运行的 Deixion 和真实设置（这时需要真实 `Deixion.exe` 的“自身窗口保护”与“严格启动模式”两段会跳过）；`console-e2e.ps1` 始终隔离。`focus-e2e.ps1` 只结束可执行文件在项目目录下的进程；`e2e-setup.ps1` 会按进程名结束所有 Deixion / deixion-cli（包括已安装的那份），请在开发机上、退出日常使用的 Deixion 之后再跑。
+- 端到端验证脚本在 `tools/e2e/`（只有端到端，没有单元测试）：`e2e-setup.ps1` 覆盖安装、带占用的升级、损坏安装包的回滚、卸载；`mcp-e2e.mjs` 用真实 MCP 会话驱动测试靶子并核对靶子自己写出的状态，同时检查权限边界；`mcp-stress.mjs <次数> [通道] [chord]` 反复压测文字替换与 `Ctrl+A`；`focus-e2e.ps1 [-Runs N] [-Isolated]` 在跑 MCP 会话的同时用一个高优先级线程轮询系统前台窗口，只要测试靶子成为过前台窗口就判失败；`console-e2e.ps1 [-Runs N] [-Cli 路径]` 拉起一个经典控制台窗口里的 PowerShell，后台连续输入 `-- ee --ee aa 11 ;;` 并核对它收到的内容逐字一致，再对最小化的控制台依次做 restore / maximize / minimize / restore，断言你的窗口始终在前台、控制台从未成为前台（脚本里有一步对照：不经 Deixion、直接 `ShowWindow(SW_RESTORE)` 会抢前台，说明这个断言抓得到抢占），`-Cli` 可换成别的 `deixion-cli.exe` 做新旧对照。`i18n-e2e.mjs` 用真实的 Deixion.exe（便携模式，放在临时目录）经 WebView2 调试端口逐页读界面：英文界面十个页面、所有分段开关、设置页弹窗里不许出现汉字，中文界面保持原样，点语言按钮后整页重载并写进 `settings.json`；`node tools/i18n-check.mjs` 静态检查词典是否覆盖了代码里的每一处中文。`pipe-identity-e2e.ps1 [-SkipSystem]` 先用同账户的假管道服务端作对照（客户端会把请求发过去），再用计划任务以 SYSTEM 账户起同名的假服务端（弹一次 UAC），断言客户端连上后发送 0 字节并回退到进程内引擎；它会让正在运行的 Deixion 暂时退出、结束后重新拉起。运行前需要先完整构建。命名管道每个用户只有一个，所以 `mcp-e2e.mjs`、`mcp-stress.mjs`、`focus-e2e.ps1` 默认会连上已经在运行的 Deixion（比如已安装的旧版本），测的就不是 `build/` 里的新二进制；设环境变量 `DX_E2E_ISOLATED=1`（`focus-e2e.ps1` 用 `-Isolated`）后，它们把 `deixion-cli.exe` 复制到 `.scratch/` 下，放 `portable.flag` 并用 `--inproc` 在自己的进程里跑引擎，不碰正在运行的 Deixion 和真实设置（这时需要真实 `Deixion.exe` 的“自身窗口保护”与“严格启动模式”两段会跳过）；`console-e2e.ps1` 始终隔离。`focus-e2e.ps1` 只结束可执行文件在项目目录下的进程；`e2e-setup.ps1` 会按进程名结束所有 Deixion / deixion-cli（包括已安装的那份），请在开发机上、退出日常使用的 Deixion 之后再跑。
 
 第三方组件只有两个：WebView2 SDK 与 KaTeX，许可证和核验记录见 `third_party/AUDIT.md`。
 
@@ -325,7 +325,11 @@ cmake --build build
 - 日志异步写入。进程崩溃时，队列中尚未写出的日志（约 500 ms 内）可能丢失。
 - 界面页面以代码为准，共 10 个页面（总览、定位、元素、操作、经验、日志、性能、接入、指南、设置）。
 
-## 本轮更新：1.0.8
+## 本轮更新：1.0.9
+
+无障碍：分段开关向辅助技术暴露选中项（`role="tab"` + `aria-selected`）；对话框锁住 `Tab` 焦点、关闭后把焦点还给打开它的控件，并带 `aria-modal` 与标题名称；图表带随数据更新的文字概述，截图带替代文字；新增 Windows 对比度主题（`forced-colors`）样式。这些改动没有用读屏软件或真实的对比度主题验证过，现状与限制见 [ACCESSIBILITY.md](ACCESSIBILITY.md)。命名管道身份校验的拒绝分支已用 SYSTEM 账户实测（`tools/e2e/pipe-identity-e2e.ps1`）。CodeQL 现在也扫描 C/C++。详见 [CHANGELOG](CHANGELOG.md)。
+
+## 1.0.8
 
 维护版本，引擎、界面与安装器的行为同 1.0.7。程序清单里的版本号此前一直停在 `1.0.5.0`，现在与资源版本一起由 CMake 的工程版本生成，发版只改 `CMakeLists.txt` 一处。`tools/e2e/updater-e2e.mjs` 不再把参数拼进要执行的代码，改为作为 `Runtime.callFunctionOn` 的参数传入（CodeQL `js/bad-code-sanitization` 两条告警，属于测试脚本，不随安装包分发）。Wiki 由 `docs/wiki/` 发布。详见 [CHANGELOG](CHANGELOG.md)。
 

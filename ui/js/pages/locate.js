@@ -125,6 +125,7 @@ registerPage({
       if (trail.length) params.code = trail.at(-1);
       const r = await call('capture', params);
       img.src = `data:${r.image.mime};base64,${r.image.b64}`;
+      img.alt = t('目标的截图');
       imgRatio = r.image.w / r.image.h;
       frame = r.frame;
       region = { a: { lam: +r.region.a.split(',')[0], phi: +r.region.a.split(',')[1] }, b: { lam: +r.region.b.split(',')[0], phi: +r.region.b.split(',')[1] } };
